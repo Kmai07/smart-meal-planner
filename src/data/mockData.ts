@@ -7,6 +7,13 @@ export interface InventoryItem {
   expiresIn?: number; // days
 }
 
+export interface StoreLocation {
+  name: string;
+  lat: number;
+  lng: number;
+  address: string;
+}
+
 export interface StorePrice {
   store: string;
   item: string;
@@ -14,6 +21,15 @@ export interface StorePrice {
   onSale: boolean;
   snapEligible: boolean;
 }
+
+export const storeLocations: StoreLocation[] = [
+  { name: "SaveMart", lat: 40.7580, lng: -73.9855, address: "234 W 42nd St, New York, NY" },
+  { name: "FreshGrocer", lat: 40.7282, lng: -73.7949, address: "89-15 Queens Blvd, Queens, NY" },
+  { name: "Walmart", lat: 40.6892, lng: -74.0445, address: "600 Gateway Dr, Brooklyn, NY" },
+  { name: "Aldi", lat: 40.7448, lng: -73.9181, address: "15-20 Jackson Ave, Long Island City, NY" },
+  { name: "Target", lat: 40.7614, lng: -73.9776, address: "1515 Broadway, New York, NY" },
+  { name: "Costco", lat: 40.7569, lng: -73.9271, address: "32-50 Vernon Blvd, Long Island City, NY" },
+];
 
 export interface ChatMessage {
   id: string;
