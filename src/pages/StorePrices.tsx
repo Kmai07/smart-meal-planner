@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Search, ArrowUpDown, Trophy, Tag, MapPin, Navigation, Loader2 } from "lucide-react";
-import { mockStorePrices, storeLocations } from "@/data/mockData";
+import { mockStorePrices, generateNearbyStores, type StoreLocation } from "@/data/mockData";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ const StorePrices = () => {
   const [search, setSearch] = useState("");
   const [sortAsc, setSortAsc] = useState(true);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [nearbyStores, setNearbyStores] = useState<StoreLocation[]>([]);
   const [locating, setLocating] = useState(false);
   const [sortBy, setSortBy] = useState<"price" | "distance">("price");
 
@@ -38,7 +39,9 @@ const StorePrices = () => {
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setUserLocation(loc);
+        setNearbyStores(generateNearbyStores(loc.lat, loc.lng));
         setSortBy("distance");
         setLocating(false);
         toast.success("Location found! Showing nearest stores.");
@@ -51,16 +54,16 @@ const StorePrices = () => {
   }, []);
 
   const getStoreDistance = (storeName: string) => {
-    if (!userLocation) return null;
-    const loc = storeLocations.find((s) => s.name === storeName);
+    if (!userLocation || nearbyStores.length === 0) return null;
+    const loc = nearbyStores.find((s) => s.name === storeName);
     if (!loc) return null;
     return kmToMiles(getDistanceKm(userLocation.lat, userLocation.lng, loc.lat, loc.lng));
   };
 
   const getStoreAddress = (storeName: string) => {
-    return storeLocations.find((s) => s.name === storeName)?.address || "";
+    const stores = nearbyStores.length > 0 ? nearbyStores : [];
+    return stores.find((s) => s.name === storeName)?.address || "";
   };
-
   const filtered = mockStorePrices
     .filter(
       (p) =>

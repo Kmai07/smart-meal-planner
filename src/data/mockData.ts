@@ -23,13 +23,30 @@ export interface StorePrice {
 }
 
 export const storeLocations: StoreLocation[] = [
-  { name: "SaveMart", lat: 40.7580, lng: -73.9855, address: "234 W 42nd St, New York, NY" },
-  { name: "FreshGrocer", lat: 40.7282, lng: -73.7949, address: "89-15 Queens Blvd, Queens, NY" },
-  { name: "Walmart", lat: 40.6892, lng: -74.0445, address: "600 Gateway Dr, Brooklyn, NY" },
-  { name: "Aldi", lat: 40.7448, lng: -73.9181, address: "15-20 Jackson Ave, Long Island City, NY" },
-  { name: "Target", lat: 40.7614, lng: -73.9776, address: "1515 Broadway, New York, NY" },
-  { name: "Costco", lat: 40.7569, lng: -73.9271, address: "32-50 Vernon Blvd, Long Island City, NY" },
+  { name: "SaveMart", lat: 0, lng: 0, address: "234 Main St" },
+  { name: "FreshGrocer", lat: 0, lng: 0, address: "89 Market Ave" },
+  { name: "Walmart", lat: 0, lng: 0, address: "600 Commerce Dr" },
+  { name: "Aldi", lat: 0, lng: 0, address: "15 Oak Blvd" },
+  { name: "Target", lat: 0, lng: 0, address: "1515 Broadway" },
+  { name: "Costco", lat: 0, lng: 0, address: "32 Warehouse Way" },
 ];
+
+// Generate store locations near a given point (within ~1-10 miles)
+export function generateNearbyStores(lat: number, lng: number): StoreLocation[] {
+  const offsets = [
+    { dLat: 0.008, dLng: 0.012 },   // ~0.8 mi
+    { dLat: -0.022, dLng: 0.035 },  // ~2.8 mi
+    { dLat: 0.045, dLng: -0.018 },  // ~3.3 mi
+    { dLat: -0.058, dLng: -0.042 }, // ~5.0 mi
+    { dLat: 0.072, dLng: 0.055 },   // ~6.2 mi
+    { dLat: -0.11, dLng: 0.08 },    // ~9.5 mi
+  ];
+  return storeLocations.map((store, i) => ({
+    ...store,
+    lat: lat + offsets[i].dLat,
+    lng: lng + offsets[i].dLng,
+  }));
+}
 
 export interface ChatMessage {
   id: string;
