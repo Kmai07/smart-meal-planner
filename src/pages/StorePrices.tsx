@@ -1,13 +1,13 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, ArrowUpDown, Trophy, Tag, MapPin, Navigation, Loader2, MapPinned, Globe, Database, TrendingDown, Calendar } from "lucide-react";
-import { mockStorePrices, generateNearbyStores, twinCitiesZipCodes, type StoreLocation } from "@/data/mockData";
+import { Search, ArrowUpDown, Trophy, Tag, MapPin, Navigation, Loader2, MapPinned, Globe, Database, TrendingDown, Calendar, Store } from "lucide-react";
+import { mockStorePrices, twinCitiesZipCodes } from "@/data/mockData";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { searchOpenPrices, type OpenPrice } from "@/lib/api/openPrices";
-
+import { fetchNearbyStores, type RealStore } from "@/lib/api/nearbyStores";
 interface AddressSuggestion {
   display_name: string;
   lat: string;
@@ -52,7 +52,8 @@ const StorePrices = () => {
   const [search, setSearch] = useState("");
   const [sortAsc, setSortAsc] = useState(true);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [nearbyStores, setNearbyStores] = useState<StoreLocation[]>([]);
+  const [nearbyStores, setNearbyStores] = useState<RealStore[]>([]);
+  const [loadingStores, setLoadingStores] = useState(false);
   const [locating, setLocating] = useState(false);
   const [sortBy, setSortBy] = useState<"price" | "distance">("price");
   const [manualLocation, setManualLocation] = useState("");
@@ -96,13 +97,25 @@ const StorePrices = () => {
     return () => { if (liveDebounceRef.current) clearTimeout(liveDebounceRef.current); };
   }, [search]);
 
-  const applyLocation = useCallback((lat: number, lng: number, label?: string) => {
+  const applyLocation = useCallback(async (lat: number, lng: number, label?: string) => {
     setUserLocation({ lat, lng });
-    setNearbyStores(generateNearbyStores(lat, lng));
     setSortBy("distance");
     if (label) setManualLocation(label);
     setShowSuggestions(false);
     setSuggestions([]);
+    // Fetch real nearby stores
+    setLoadingStores(true);
+    try {
+      const stores = await fetchNearbyStores(lat, lng);
+      setNearbyStores(stores);
+      if (stores.length === 0) {
+        toast.info("No grocery stores found nearby. Try a different location.");
+      }
+    } catch {
+      toast.error("Failed to fetch nearby stores.");
+    } finally {
+      setLoadingStores(false);
+    }
   }, []);
 
   const handleGetLocation = useCallback(() => {
@@ -208,8 +221,7 @@ const StorePrices = () => {
   };
 
   const getStoreAddress = (storeName: string) => {
-    const stores = nearbyStores.length > 0 ? nearbyStores : [];
-    return stores.find((s) => s.name === storeName)?.address || "";
+    return nearbyStores.find((s) => s.name === storeName)?.address || "";
   };
 
   // Build unified price list from local + live
@@ -360,7 +372,7 @@ const StorePrices = () => {
         </div>
         {userLocation && (
           <span className="text-sm text-muted-foreground">
-            📍 Location set — distances shown below
+            📍 Location set — {loadingStores ? "finding stores..." : `${nearbyStores.length} stores found`}
           </span>
         )}
         {userLocation && (
@@ -382,6 +394,49 @@ const StorePrices = () => {
           </div>
         )}
       </motion.div>
+
+      {/* Nearby Real Stores */}
+      {userLocation && nearbyStores.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="mt-3 rounded-xl border bg-card p-4"
+        >
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-3">
+            <Store className="h-4 w-4" />
+            Nearby Grocery Stores
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {nearbyStores.slice(0, 10).map((store, i) => {
+              const dist = kmToMiles(getDistanceKm(userLocation.lat, userLocation.lng, store.lat, store.lng));
+              return (
+                <div
+                  key={i}
+                  className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2 text-sm"
+                >
+                  <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <div>
+                    <span className="font-medium">{store.name}</span>
+                    {store.address && (
+                      <p className="text-xs text-muted-foreground">{store.address}</p>
+                    )}
+                  </div>
+                  <Badge variant="outline" className="text-xs ml-1 shrink-0">
+                    {dist.toFixed(1)} mi
+                  </Badge>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+      {loadingStores && (
+        <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Finding real grocery stores near you...
+        </div>
+      )}
 
       {/* Unified Search Bar */}
       <div className="mt-4 flex items-center gap-3">
