@@ -217,13 +217,13 @@ const StorePrices = () => {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Map mock store names to real nearby stores when available, always include Target & Walmart
+  // Map mock store names to real nearby stores, use real Target & Walmart from Overpass
   const mockStoreNames = [...new Set(mockStorePrices.map((p) => p.store))];
   const storeNameMapping = new Map<string, RealStore>();
+  const targetStore = nearbyStores.find((s) => /target/i.test(s.name) || /target/i.test(s.brand || ""));
+  const walmartStore = nearbyStores.find((s) => /walmart/i.test(s.name) || /walmart/i.test(s.brand || ""));
+
   if (nearbyStores.length > 0) {
-    // Try to find Target & Walmart in real stores first
-    const targetStore = nearbyStores.find((s) => /target/i.test(s.name) || /target/i.test(s.brand || ""));
-    const walmartStore = nearbyStores.find((s) => /walmart/i.test(s.name) || /walmart/i.test(s.brand || ""));
     const otherStores = nearbyStores.filter(
       (s) => s !== targetStore && s !== walmartStore
     );
@@ -236,31 +236,13 @@ const StorePrices = () => {
     });
   }
 
-  // Always inject Target & Walmart as virtual stores if not already in nearby results
+  // Use real Target & Walmart data from Overpass results (with real addresses)
   const majorChains: RealStore[] = [];
-  const hasTarget = nearbyStores.some((s) => /target/i.test(s.name) || /target/i.test(s.brand || ""));
-  const hasWalmart = nearbyStores.some((s) => /walmart/i.test(s.name) || /walmart/i.test(s.brand || ""));
-  if (!hasTarget) {
-    majorChains.push({
-      name: "Target",
-      lat: userLocation?.lat || 0,
-      lng: userLocation?.lng || 0,
-      address: "Nearest Target",
-      type: "supermarket",
-      brand: "Target",
-      openingHours: null,
-    });
+  if (targetStore) {
+    majorChains.push(targetStore);
   }
-  if (!hasWalmart) {
-    majorChains.push({
-      name: "Walmart",
-      lat: userLocation?.lat || 0,
-      lng: userLocation?.lng || 0,
-      address: "Nearest Walmart",
-      type: "supermarket",
-      brand: "Walmart",
-      openingHours: null,
-    });
+  if (walmartStore) {
+    majorChains.push(walmartStore);
   }
 
   const getRealStoreName = (mockName: string) => {
@@ -330,7 +312,16 @@ const StorePrices = () => {
     });
   });
 
-  const liveUnified: UnifiedPrice[] = liveResults.map((p) => ({
+  // Filter live results to only show stores in the user's area (within ~80km / 50mi)
+  const MAX_LIVE_DISTANCE_KM = 80;
+  const filteredLiveResults = userLocation
+    ? liveResults.filter((p) => {
+        if (!p.storeLat || !p.storeLon) return false;
+        return getDistanceKm(userLocation.lat, userLocation.lng, p.storeLat, p.storeLon) <= MAX_LIVE_DISTANCE_KM;
+      })
+    : liveResults;
+
+  const liveUnified: UnifiedPrice[] = filteredLiveResults.map((p) => ({
     id: `live-${p.id}`,
     item: p.productName,
     store: p.storeName,
