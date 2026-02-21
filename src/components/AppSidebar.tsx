@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Input } from "@/components/ui/input";
 import { Package, MessageSquare, ShoppingCart, LayoutDashboard, Wallet, Apple, BookOpen, LogOut, MinusCircle } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -18,9 +19,13 @@ const AppSidebar = () => {
   const location = useLocation();
   const { signOut, user } = useAuth();
   const [snapBalance, setSnapBalance] = useState(15.0);
+  const [deductionInput, setDeductionInput] = useState("");
 
   const handleDeduction = () => {
-    setSnapBalance((prev) => parseFloat((prev - 3.5).toFixed(2)));
+    const amount = parseFloat(deductionInput);
+    if (isNaN(amount) || amount <= 0) return;
+    setSnapBalance((prev) => parseFloat((prev - amount).toFixed(2)));
+    setDeductionInput("");
   };
 
   const totalBudget = 15.0;
@@ -61,14 +66,25 @@ const AppSidebar = () => {
       </nav>
 
       <div className="mx-3 mb-2 rounded-lg bg-sidebar-accent p-4">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold text-sidebar-primary">SNAP Budget</p>
+        <p className="text-xs font-semibold text-sidebar-primary">SNAP Budget</p>
+        <div className="mt-2 flex items-center gap-1.5">
+          <span className="text-xs text-sidebar-foreground/60">$</span>
+          <Input
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="0.00"
+            value={deductionInput}
+            onChange={(e) => setDeductionInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleDeduction()}
+            className="h-7 w-full bg-sidebar-border/50 text-xs border-sidebar-border"
+          />
           <button
             onClick={handleDeduction}
-            className="flex items-center gap-1 rounded-md bg-sidebar-primary/10 px-2 py-1 text-xs font-medium text-sidebar-primary hover:bg-sidebar-primary/20 transition-colors"
+            className="flex shrink-0 items-center gap-1 rounded-md bg-sidebar-primary px-2.5 py-1.5 text-xs font-medium text-sidebar-primary-foreground hover:bg-sidebar-primary/90 transition-colors"
           >
             <MinusCircle className="h-3 w-3" />
-            −$3.50
+            Deduct
           </button>
         </div>
         <p className="mt-1 font-display text-2xl font-bold text-sidebar-primary-foreground">
