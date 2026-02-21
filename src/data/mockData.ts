@@ -171,6 +171,7 @@ export interface MealOption {
   id: string;
   name: string;
   ingredients: string[];
+  ingredientAmounts?: string[];
   totalCost: number;
   servings: number;
   chefPick?: boolean;

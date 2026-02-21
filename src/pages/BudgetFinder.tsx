@@ -1,53 +1,47 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { DollarSign, ChefHat, Users, Tag, Clock, CookingPot, ChevronDown, ChevronUp, Filter } from "lucide-react";
+import { DollarSign, ChefHat, Users, Tag, Clock, CookingPot, ChevronDown, ChevronUp } from "lucide-react";
 import { worldMeals } from "@/data/worldMeals";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-
-// Extract all unique tags from meals for filter options
-const DIETARY_FILTERS = ["Vegetarian", "Dairy Free", "Vegan", "Gluten Free", "High Protein", "SNAP"] as const;
-const CUISINE_FILTERS = [...new Set(worldMeals.flatMap((m) => m.tags.filter((t) =>
-  !DIETARY_FILTERS.includes(t as any) && !["Budget", "Quick", "Chef Pick", "Comfort Food", "Breakfast", "Snack", "Traditional", "Street Food", "One Pot", "Dessert", "Appetizer", "Soup"].includes(t)
-)))].sort();
+import { FilterDropdowns } from "@/components/budget/FilterDropdowns";
+import { getIngredientAmount } from "@/lib/ingredientAmounts";
 
 const BudgetFinder = () => {
   const [budget, setBudget] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [expandedMeal, setExpandedMeal] = useState<string | null>(null);
+  const [selectedCuisine, setSelectedCuisine] = useState<string[]>([]);
   const [selectedDietary, setSelectedDietary] = useState<string[]>([]);
-  const [selectedCuisine, setSelectedCuisine] = useState<string | null>(null);
+  const [selectedMealType, setSelectedMealType] = useState<string[]>([]);
 
   const budgetNum = parseFloat(budget) || 0;
 
   const results = useMemo(() => {
     let filtered = worldMeals.filter((m) => m.totalCost <= budgetNum);
 
+    if (selectedCuisine.length > 0) {
+      filtered = filtered.filter((m) =>
+        selectedCuisine.some((c) => m.tags.some((t) => t.toLowerCase() === c.toLowerCase()))
+      );
+    }
     if (selectedDietary.length > 0) {
       filtered = filtered.filter((m) =>
         selectedDietary.every((d) => m.tags.some((t) => t.toLowerCase() === d.toLowerCase()))
       );
     }
-
-    if (selectedCuisine) {
+    if (selectedMealType.length > 0) {
       filtered = filtered.filter((m) =>
-        m.tags.some((t) => t.toLowerCase() === selectedCuisine.toLowerCase())
+        selectedMealType.some((mt) => m.tags.some((t) => t.toLowerCase() === mt.toLowerCase()))
       );
     }
 
     return filtered.sort((a, b) => a.totalCost - b.totalCost);
-  }, [budgetNum, selectedDietary, selectedCuisine]);
+  }, [budgetNum, selectedCuisine, selectedDietary, selectedMealType]);
 
-  const toggleDietary = (filter: string) => {
-    setSelectedDietary((prev) =>
-      prev.includes(filter) ? prev.filter((f) => f !== filter) : [...prev, filter]
-    );
-  };
-
-  const toggleMeal = (id: string) => {
-    setExpandedMeal((prev) => (prev === id ? null : id));
-  };
+  const toggleIn = (arr: string[], val: string) =>
+    arr.includes(val) ? arr.filter((v) => v !== val) : [...arr, val];
 
   return (
     <div>
@@ -59,7 +53,7 @@ const BudgetFinder = () => {
       </motion.div>
 
       <motion.div
-        className="mt-6 rounded-xl border bg-card p-6 shadow-sm"
+        className="mt-6 rounded-xl border bg-card p-6 shadow-sm space-y-4"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
@@ -96,49 +90,19 @@ const BudgetFinder = () => {
           </Button>
         </form>
 
-        {/* Dietary & Cuisine Filters */}
-        <div className="mt-4 space-y-3">
-          <div>
-            <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
-              <Filter className="h-3.5 w-3.5" /> Dietary
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {DIETARY_FILTERS.map((f) => (
-                <button
-                  key={f}
-                  type="button"
-                  onClick={() => toggleDietary(f)}
-                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                    selectedDietary.includes(f)
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-secondary/50 text-secondary-foreground border-border hover:bg-secondary"
-                  }`}
-                >
-                  {f}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <p className="text-xs font-medium text-muted-foreground mb-2">Cuisine</p>
-            <div className="flex flex-wrap gap-2">
-              {CUISINE_FILTERS.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setSelectedCuisine(selectedCuisine === c ? null : c)}
-                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                    selectedCuisine === c
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-secondary/50 text-secondary-foreground border-border hover:bg-secondary"
-                  }`}
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+        <FilterDropdowns
+          selectedCuisine={selectedCuisine}
+          selectedDietary={selectedDietary}
+          selectedMealType={selectedMealType}
+          onToggleCuisine={(t) => setSelectedCuisine(toggleIn(selectedCuisine, t))}
+          onToggleDietary={(t) => setSelectedDietary(toggleIn(selectedDietary, t))}
+          onToggleMealType={(t) => setSelectedMealType(toggleIn(selectedMealType, t))}
+          onClearAll={() => {
+            setSelectedCuisine([]);
+            setSelectedDietary([]);
+            setSelectedMealType([]);
+          }}
+        />
       </motion.div>
 
       {submitted && budgetNum > 0 && (
@@ -170,33 +134,23 @@ const BudgetFinder = () => {
                     className="rounded-xl border bg-card shadow-sm hover:shadow-md transition-shadow overflow-hidden"
                   >
                     <button
-                      onClick={() => toggleMeal(meal.id)}
+                      onClick={() => setExpandedMeal(isExpanded ? null : meal.id)}
                       className="w-full text-left p-5"
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
                           <h3 className="font-display text-lg font-semibold flex items-center gap-2">
                             {meal.name}
-                            {meal.chefPick && (
-                              <ChefHat className="h-4 w-4 text-accent shrink-0" />
-                            )}
+                            {meal.chefPick && <ChefHat className="h-4 w-4 text-accent shrink-0" />}
                           </h3>
-                          {/* Tags below the name */}
                           <div className="mt-1.5 flex gap-1 flex-wrap">
                             {meal.tags.map((tag) => (
-                              <Badge
-                                key={tag}
-                                variant="secondary"
-                                className="text-xs"
-                              >
+                              <Badge key={tag} variant="secondary" className="text-xs">
                                 <Tag className="h-3 w-3 mr-1" />
                                 {tag}
                               </Badge>
                             ))}
                           </div>
-                          <p className="mt-2 text-sm text-muted-foreground">
-                            {meal.ingredients.join(", ")}
-                          </p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0 ml-3">
                           <span className="font-display text-2xl font-bold text-savings">
@@ -242,6 +196,22 @@ const BudgetFinder = () => {
                           className="overflow-hidden"
                         >
                           <div className="px-5 pb-5 border-t pt-4 space-y-4">
+                            {/* Ingredients with amounts */}
+                            <div>
+                              <h4 className="font-semibold text-sm mb-2">📝 Ingredients</h4>
+                              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                {meal.ingredients.map((ing, idx) => (
+                                  <li key={idx} className="flex items-center justify-between text-sm rounded-md bg-muted/30 px-3 py-1.5">
+                                    <span className="text-foreground">{ing}</span>
+                                    <span className="text-muted-foreground text-xs font-medium ml-2 shrink-0">
+                                      {getIngredientAmount(ing, idx, meal.ingredientAmounts)}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+
+                            {/* Cooking instructions */}
                             <div>
                               <h4 className="font-semibold text-sm flex items-center gap-2 mb-3">
                                 <CookingPot className="h-4 w-4 text-primary" />
