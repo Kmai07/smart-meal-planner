@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
-import { Package, MessageSquare, ShoppingCart, LayoutDashboard, Wallet, Apple, BookOpen, LogOut, MinusCircle } from "lucide-react";
+import { Package, MessageSquare, ShoppingCart, LayoutDashboard, Wallet, Apple, BookOpen, LogOut, MinusCircle, Settings2 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,8 +18,11 @@ const navItems = [
 const AppSidebar = () => {
   const location = useLocation();
   const { signOut, user } = useAuth();
+  const [totalBudget, setTotalBudget] = useState(75.0);
   const [snapBalance, setSnapBalance] = useState(75.0);
   const [deductionInput, setDeductionInput] = useState("");
+  const [budgetInput, setBudgetInput] = useState("");
+  const [editingBudget, setEditingBudget] = useState(false);
 
   const handleDeduction = () => {
     const amount = parseFloat(deductionInput);
@@ -28,7 +31,15 @@ const AppSidebar = () => {
     setDeductionInput("");
   };
 
-  const totalBudget = 75.0;
+  const handleSetBudget = () => {
+    const amount = parseFloat(budgetInput);
+    if (isNaN(amount) || amount <= 0) return;
+    setTotalBudget(amount);
+    setSnapBalance(amount);
+    setBudgetInput("");
+    setEditingBudget(false);
+  };
+
   const used = parseFloat((totalBudget - snapBalance).toFixed(2));
   const percentRemaining = Math.max(0, snapBalance / totalBudget);
 
@@ -66,7 +77,38 @@ const AppSidebar = () => {
       </nav>
 
       <div className="mx-3 mb-2 rounded-lg bg-sidebar-accent p-4">
-        <p className="text-xs font-semibold text-sidebar-primary">SNAP Budget</p>
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold text-sidebar-primary">SNAP Budget</p>
+          <button
+            onClick={() => setEditingBudget(!editingBudget)}
+            className="rounded p-0.5 text-sidebar-foreground/50 hover:text-sidebar-primary transition-colors"
+            title="Set budget"
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        {editingBudget && (
+          <div className="mt-2 flex items-center gap-1.5">
+            <span className="text-xs text-sidebar-foreground/60">$</span>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="New budget"
+              value={budgetInput}
+              onChange={(e) => setBudgetInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSetBudget()}
+              className="h-7 w-full bg-sidebar-border/50 text-xs border-sidebar-border"
+              autoFocus
+            />
+            <button
+              onClick={handleSetBudget}
+              className="shrink-0 rounded-md bg-sidebar-primary px-2.5 py-1.5 text-xs font-medium text-sidebar-primary-foreground hover:bg-sidebar-primary/90 transition-colors"
+            >
+              Set
+            </button>
+          </div>
+        )}
         <div className="mt-2 flex items-center gap-1.5">
           <span className="text-xs text-sidebar-foreground/60">$</span>
           <Input
