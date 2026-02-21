@@ -225,12 +225,34 @@ const StorePrices = () => {
   if (targetStore) majorChains.push(targetStore);
   if (walmartStore) majorChains.push(walmartStore);
 
-  // Find a nearby store by name match for address/distance lookups
+  // Find a nearby store by name match for address/distance lookups (fuzzy)
   const findNearbyStore = (storeName: string): RealStore | undefined => {
-    return nearbyStores.find(
-      (s) => s.name.toLowerCase() === storeName.toLowerCase() ||
-        s.brand?.toLowerCase() === storeName.toLowerCase()
+    const lower = storeName.toLowerCase();
+    // Exact match first
+    const exact = nearbyStores.find(
+      (s) => s.name.toLowerCase() === lower || s.brand?.toLowerCase() === lower
     );
+    if (exact) return exact;
+    // Partial match: store name contains search or vice versa
+    const partial = nearbyStores.find(
+      (s) =>
+        s.name.toLowerCase().includes(lower) ||
+        lower.includes(s.name.toLowerCase()) ||
+        (s.brand && (s.brand.toLowerCase().includes(lower) || lower.includes(s.brand.toLowerCase())))
+    );
+    if (partial) return partial;
+    // Fallback: find nearest store with an address
+    if (userLocation && nearbyStores.length > 0) {
+      const withAddress = nearbyStores.filter((s) => s.address);
+      if (withAddress.length > 0) {
+        return withAddress.reduce((closest, s) => {
+          const dCurrent = getDistanceKm(userLocation.lat, userLocation.lng, s.lat, s.lng);
+          const dClosest = getDistanceKm(userLocation.lat, userLocation.lng, closest.lat, closest.lng);
+          return dCurrent < dClosest ? s : closest;
+        });
+      }
+    }
+    return undefined;
   };
 
   const getStoreDistance = (storeName: string) => {
