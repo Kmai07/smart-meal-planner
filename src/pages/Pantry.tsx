@@ -5,6 +5,9 @@ import { mockInventory, InventoryItem } from "@/data/mockData";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const categoryColors: Record<string, string> = {
   Grains: "bg-secondary text-secondary-foreground",
@@ -14,15 +17,45 @@ const categoryColors: Record<string, string> = {
   Dairy: "bg-snap/10 text-snap",
 };
 
+const categories = ["All", "Grains", "Canned", "Protein", "Vegetables", "Dairy"];
+
 const Pantry = () => {
   const [items, setItems] = useState<InventoryItem[]>(mockInventory);
   const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("All");
+  const [dialogOpen, setDialogOpen] = useState(false);
 
-  const filtered = items.filter((i) =>
-    i.name.toLowerCase().includes(search.toLowerCase())
-  );
+  // Add item form state
+  const [newName, setNewName] = useState("");
+  const [newQty, setNewQty] = useState("");
+  const [newUnit, setNewUnit] = useState("");
+  const [newCategory, setNewCategory] = useState("Grains");
+  const [newExpiry, setNewExpiry] = useState("");
+
+  const filtered = items
+    .filter((i) => i.name.toLowerCase().includes(search.toLowerCase()))
+    .filter((i) => categoryFilter === "All" || i.category === categoryFilter);
 
   const removeItem = (id: string) => setItems((prev) => prev.filter((i) => i.id !== id));
+
+  const addItem = () => {
+    if (!newName.trim() || !newQty) return;
+    const item: InventoryItem = {
+      id: Date.now().toString(),
+      name: newName.trim(),
+      quantity: parseFloat(newQty),
+      unit: newUnit || "pcs",
+      category: newCategory,
+      expiresIn: newExpiry ? parseInt(newExpiry) : undefined,
+    };
+    setItems((prev) => [...prev, item]);
+    setNewName("");
+    setNewQty("");
+    setNewUnit("");
+    setNewCategory("Grains");
+    setNewExpiry("");
+    setDialogOpen(false);
+  };
 
   return (
     <div>
@@ -41,13 +74,78 @@ const Pantry = () => {
             className="pl-10"
           />
         </div>
-        <Button className="gap-2">
-          <Plus className="h-4 w-4" /> Add Item
-        </Button>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" /> Add Item
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="font-display">Add Pantry Item</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 mt-2">
+              <div>
+                <Label>Item Name</Label>
+                <Input placeholder="e.g. Chicken Breast" value={newName} onChange={(e) => setNewName(e.target.value)} className="mt-1" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Quantity</Label>
+                  <Input type="number" min="0" step="0.5" placeholder="e.g. 2" value={newQty} onChange={(e) => setNewQty(e.target.value)} className="mt-1" />
+                </div>
+                <div>
+                  <Label>Unit</Label>
+                  <Input placeholder="e.g. lbs, pcs, cans" value={newUnit} onChange={(e) => setNewUnit(e.target.value)} className="mt-1" />
+                </div>
+              </div>
+              <div>
+                <Label>Category</Label>
+                <Select value={newCategory} onValueChange={setNewCategory}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.filter((c) => c !== "All").map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Days Until Expiry (optional)</Label>
+                <Input type="number" min="0" placeholder="e.g. 7" value={newExpiry} onChange={(e) => setNewExpiry(e.target.value)} className="mt-1" />
+              </div>
+              <Button onClick={addItem} disabled={!newName.trim() || !newQty} className="w-full">
+                Add to Pantry
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Category filter tabs */}
+      <div className="mt-4 flex gap-2 flex-wrap">
+        {categories.map((cat) => (
+          <Badge
+            key={cat}
+            variant="secondary"
+            className={`cursor-pointer transition-colors ${
+              categoryFilter === cat
+                ? cat === "All"
+                  ? "bg-primary/10 text-primary"
+                  : categoryColors[cat] || "bg-primary/10 text-primary"
+                : "opacity-60"
+            }`}
+            onClick={() => setCategoryFilter(cat)}
+          >
+            {cat}
+          </Badge>
+        ))}
       </div>
 
       <motion.div
-        className="mt-6 rounded-xl border bg-card shadow-sm"
+        className="mt-4 rounded-xl border bg-card shadow-sm"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
