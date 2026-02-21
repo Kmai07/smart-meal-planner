@@ -130,20 +130,34 @@ export const twinCitiesZipCodes: Record<string, { lat: number; lng: number; labe
 };
 
 // Generate store locations near a given point (within ~1-10 miles)
+// Uses a simple seeded random so different locations produce different distances
+function seededRandom(seed: number) {
+  let s = Math.sin(seed) * 10000;
+  return s - Math.floor(s);
+}
+
 export function generateNearbyStores(lat: number, lng: number): StoreLocation[] {
-  const offsets = [
-    { dLat: 0.008, dLng: 0.012 },   // ~0.8 mi
-    { dLat: -0.022, dLng: 0.035 },  // ~2.8 mi
-    { dLat: 0.045, dLng: -0.018 },  // ~3.3 mi
-    { dLat: -0.058, dLng: -0.042 }, // ~5.0 mi
-    { dLat: 0.072, dLng: 0.055 },   // ~6.2 mi
-    { dLat: -0.11, dLng: 0.08 },    // ~9.5 mi
+  const baseSeed = Math.round(lat * 1000) + Math.round(lng * 1000) * 7919;
+  const baseOffsets = [
+    { dLat: 0.008, dLng: 0.012 },   // ~0.8 mi base
+    { dLat: -0.022, dLng: 0.035 },  // ~2.8 mi base
+    { dLat: 0.045, dLng: -0.018 },  // ~3.3 mi base
+    { dLat: -0.058, dLng: -0.042 }, // ~5.0 mi base
+    { dLat: 0.072, dLng: 0.055 },   // ~6.2 mi base
+    { dLat: -0.11, dLng: 0.08 },    // ~9.5 mi base
   ];
-  return storeLocations.map((store, i) => ({
-    ...store,
-    lat: lat + offsets[i].dLat,
-    lng: lng + offsets[i].dLng,
-  }));
+  return storeLocations.map((store, i) => {
+    const r1 = seededRandom(baseSeed + i * 13);
+    const r2 = seededRandom(baseSeed + i * 31 + 7);
+    // Add variation: ±0.03 degrees (~2 miles) based on location seed
+    const jitterLat = (r1 - 0.5) * 0.06;
+    const jitterLng = (r2 - 0.5) * 0.06;
+    return {
+      ...store,
+      lat: lat + baseOffsets[i].dLat + jitterLat,
+      lng: lng + baseOffsets[i].dLng + jitterLng,
+    };
+  });
 }
 
 export interface ChatMessage {
