@@ -22,19 +22,21 @@ Deno.serve(async (req) => {
 
     const searchRadius = radius || 8000; // default 8km (~5 miles)
 
-    // Query Overpass API for grocery stores, supermarkets, convenience stores nearby
+    // Query Overpass API for grocery stores, supermarkets, convenience stores, Target, Walmart nearby
     const query = `
-      [out:json][timeout:10];
+      [out:json][timeout:15];
       (
         node["shop"="supermarket"](around:${searchRadius},${lat},${lng});
         node["shop"="grocery"](around:${searchRadius},${lat},${lng});
         node["shop"="convenience"](around:${searchRadius},${lat},${lng});
         node["shop"="greengrocer"](around:${searchRadius},${lat},${lng});
         node["shop"="wholesale"](around:${searchRadius},${lat},${lng});
+        node["shop"="department_store"]["brand"~"Target|Walmart"](around:${searchRadius},${lat},${lng});
         way["shop"="supermarket"](around:${searchRadius},${lat},${lng});
         way["shop"="grocery"](around:${searchRadius},${lat},${lng});
+        way["shop"="department_store"]["brand"~"Target|Walmart"](around:${searchRadius},${lat},${lng});
       );
-      out center body 25;
+      out center body 40;
     `;
 
     console.log(`Overpass query for lat=${lat}, lng=${lng}, radius=${searchRadius}`);
