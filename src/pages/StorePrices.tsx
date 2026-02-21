@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, ArrowUpDown, Trophy, Tag, MapPin, Navigation, Loader2, MapPinned, Globe, Database, TrendingDown, Calendar, ExternalLink } from "lucide-react";
+import { Search, ArrowUpDown, Trophy, Tag, MapPin, Navigation, Loader2, MapPinned, Globe, Database, TrendingDown, Calendar } from "lucide-react";
 import { mockStorePrices, twinCitiesZipCodes } from "@/data/mockData";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -74,6 +74,7 @@ const StorePrices = () => {
   const [liveResults, setLiveResults] = useState<OpenPrice[]>([]);
   const [liveLoading, setLiveLoading] = useState(false);
   const liveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [expandedStoreId, setExpandedStoreId] = useState<string | null>(null);
 
   // Auto-fetch live prices when search changes (debounced)
   useEffect(() => {
@@ -637,88 +638,96 @@ const StorePrices = () => {
               <div className="mt-3 space-y-2">
                 {prices.map((price) => {
                   const dist = price.source === "local" ? getRealStoreDistance(price.store) : null;
-                  const hasLocation = price.storeLat && price.storeLon;
-                  const mapsUrl = hasLocation
-                    ? `https://www.google.com/maps/search/?api=1&query=${price.storeLat},${price.storeLon}`
-                    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(price.store + (price.storeCity ? " " + price.storeCity : ""))}`;
+                  const isExpanded = expandedStoreId === price.id;
+                  const fullAddress = price.storeAddress || price.storeCity || "";
                   return (
-                    <a
+                    <div
                       key={price.id}
-                      href={mapsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`flex items-center justify-between rounded-lg px-4 py-3 transition-colors cursor-pointer hover:ring-2 hover:ring-primary/30 group ${
+                      onClick={() => setExpandedStoreId(isExpanded ? null : price.id)}
+                      className={`rounded-lg px-4 py-3 transition-colors cursor-pointer hover:ring-2 hover:ring-primary/30 ${
                         price.price === lowestPrice
                           ? "bg-savings/10 border border-savings/20"
                           : "bg-muted/50 hover:bg-muted"
                       }`}
                     >
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <div>
-                          <span className="font-medium group-hover:text-primary transition-colors flex items-center gap-1.5">
-                            {price.store}
-                            <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </span>
-                          {price.storeAddress && (
-                            <p className="text-xs text-muted-foreground">{price.storeAddress}</p>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <div>
+                            <span className="font-medium">{price.store}</span>
+                            {!isExpanded && price.storeCity && (
+                              <p className="text-xs text-muted-foreground">{price.storeCity}</p>
+                            )}
+                          </div>
+                          {dist !== null && (
+                            <Badge variant="outline" className="text-xs gap-1">
+                              <Navigation className="h-3 w-3" />
+                              {dist.toFixed(1)} mi
+                            </Badge>
                           )}
-                          {!price.storeAddress && price.storeCity && (
-                            <p className="text-xs text-muted-foreground">{price.storeCity}</p>
-                          )}
-                        </div>
-                        {dist !== null && (
                           <Badge variant="outline" className="text-xs gap-1">
-                            <Navigation className="h-3 w-3" />
-                            {dist.toFixed(1)} mi
+                            {price.source === "live" ? (
+                              <><Globe className="h-3 w-3" /> Live</>
+                            ) : (
+                              <><Database className="h-3 w-3" /> Local</>
+                            )}
                           </Badge>
-                        )}
-                        <Badge variant="outline" className="text-xs gap-1">
-                          {price.source === "live" ? (
-                            <><Globe className="h-3 w-3" /> Live</>
-                          ) : (
-                            <><Database className="h-3 w-3" /> Local</>
+                          {price.date && (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {price.date}
+                            </span>
                           )}
-                        </Badge>
-                        {price.date && (
-                          <span className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {price.date}
+                          <div className="flex gap-2">
+                            {price.onSale && (
+                              <Badge variant="secondary" className="bg-accent/10 text-accent text-xs">
+                                SALE
+                              </Badge>
+                            )}
+                            {price.snapEligible && (
+                              <Badge variant="secondary" className="bg-snap/10 text-snap text-xs">
+                                SNAP
+                              </Badge>
+                            )}
+                            {price.isDiscounted && (
+                              <Badge variant="secondary" className="bg-savings/10 text-savings text-xs">
+                                <TrendingDown className="h-3 w-3 mr-1" /> SALE
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {price.price === lowestPrice && (
+                            <span className="text-xs font-semibold text-savings">BEST</span>
+                          )}
+                          <span className={`font-display text-xl font-bold ${
+                            price.price === lowestPrice ? "text-savings" : "text-foreground"
+                          }`}>
+                            ${price.price.toFixed(2)}
                           </span>
-                        )}
-                        <div className="flex gap-2">
-                          {price.onSale && (
-                            <Badge variant="secondary" className="bg-accent/10 text-accent text-xs">
-                              SALE
-                            </Badge>
-                          )}
-                          {price.snapEligible && (
-                            <Badge variant="secondary" className="bg-snap/10 text-snap text-xs">
-                              SNAP
-                            </Badge>
-                          )}
-                          {price.isDiscounted && (
-                            <Badge variant="secondary" className="bg-savings/10 text-savings text-xs">
-                              <TrendingDown className="h-3 w-3 mr-1" /> SALE
-                            </Badge>
+                          {price.priceWithoutDiscount && (
+                            <span className="text-xs text-muted-foreground line-through">
+                              ${price.priceWithoutDiscount.toFixed(2)}
+                            </span>
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {price.price === lowestPrice && (
-                          <span className="text-xs font-semibold text-savings">BEST</span>
+                      <AnimatePresence>
+                        {isExpanded && fullAddress && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="mt-2 flex items-start gap-2 rounded-md bg-background/80 px-3 py-2 border text-sm">
+                              <MapPin className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
+                              <span className="text-muted-foreground">{fullAddress}</span>
+                            </div>
+                          </motion.div>
                         )}
-                        <span className={`font-display text-xl font-bold ${
-                          price.price === lowestPrice ? "text-savings" : "text-foreground"
-                        }`}>
-                          ${price.price.toFixed(2)}
-                        </span>
-                        {price.priceWithoutDiscount && (
-                          <span className="text-xs text-muted-foreground line-through">
-                            ${price.priceWithoutDiscount.toFixed(2)}
-                          </span>
-                        )}
-                      </div>
-                    </a>
+                      </AnimatePresence>
+                    </div>
                   );
                 })}
               </div>
