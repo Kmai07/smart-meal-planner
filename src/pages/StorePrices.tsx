@@ -1,11 +1,60 @@
 import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Search, ArrowUpDown, Trophy, Tag, MapPin, Navigation, Loader2 } from "lucide-react";
+import { Search, ArrowUpDown, Trophy, Tag, MapPin, Navigation, Loader2, MapPinned } from "lucide-react";
 import { mockStorePrices, generateNearbyStores, type StoreLocation } from "@/data/mockData";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+
+// Simple city lookup for typed locations (no external API needed)
+const CITY_COORDS: Record<string, { lat: number; lng: number }> = {
+  "new york": { lat: 40.7128, lng: -74.006 },
+  "nyc": { lat: 40.7128, lng: -74.006 },
+  "los angeles": { lat: 34.0522, lng: -118.2437 },
+  "la": { lat: 34.0522, lng: -118.2437 },
+  "chicago": { lat: 41.8781, lng: -87.6298 },
+  "houston": { lat: 29.7604, lng: -95.3698 },
+  "phoenix": { lat: 33.4484, lng: -112.074 },
+  "philadelphia": { lat: 39.9526, lng: -75.1652 },
+  "san antonio": { lat: 29.4241, lng: -98.4936 },
+  "san diego": { lat: 32.7157, lng: -117.1611 },
+  "dallas": { lat: 32.7767, lng: -96.797 },
+  "san francisco": { lat: 37.7749, lng: -122.4194 },
+  "sf": { lat: 37.7749, lng: -122.4194 },
+  "seattle": { lat: 47.6062, lng: -122.3321 },
+  "denver": { lat: 39.7392, lng: -104.9903 },
+  "boston": { lat: 42.3601, lng: -71.0589 },
+  "atlanta": { lat: 33.749, lng: -84.388 },
+  "miami": { lat: 25.7617, lng: -80.1918 },
+  "detroit": { lat: 42.3314, lng: -83.0458 },
+  "minneapolis": { lat: 44.9778, lng: -93.265 },
+  "portland": { lat: 45.5152, lng: -122.6784 },
+  "austin": { lat: 30.2672, lng: -97.7431 },
+  "nashville": { lat: 36.1627, lng: -86.7816 },
+  "charlotte": { lat: 35.2271, lng: -80.8431 },
+  "orlando": { lat: 28.5383, lng: -81.3792 },
+  "washington": { lat: 38.9072, lng: -77.0369 },
+  "dc": { lat: 38.9072, lng: -77.0369 },
+  "las vegas": { lat: 36.1699, lng: -115.1398 },
+  "memphis": { lat: 35.1495, lng: -90.049 },
+  "baltimore": { lat: 39.2904, lng: -76.6122 },
+  "milwaukee": { lat: 43.0389, lng: -87.9065 },
+  "albuquerque": { lat: 35.0844, lng: -106.6504 },
+  "tucson": { lat: 32.2226, lng: -110.9747 },
+  "fresno": { lat: 36.7378, lng: -119.7871 },
+  "sacramento": { lat: 38.5816, lng: -121.4944 },
+  "kansas city": { lat: 39.0997, lng: -94.5786 },
+  "mesa": { lat: 33.4152, lng: -111.8315 },
+  "omaha": { lat: 41.2565, lng: -95.9345 },
+  "cleveland": { lat: 41.4993, lng: -81.6944 },
+  "pittsburgh": { lat: 40.4406, lng: -79.9959 },
+  "raleigh": { lat: 35.7796, lng: -78.6382 },
+  "indianapolis": { lat: 39.7684, lng: -86.1581 },
+  "st louis": { lat: 38.627, lng: -90.1994 },
+  "tampa": { lat: 27.9506, lng: -82.4572 },
+  "louisville": { lat: 38.2527, lng: -85.7585 },
+};
 
 function getDistanceKm(lat1: number, lng1: number, lat2: number, lng2: number) {
   const R = 6371;
@@ -30,6 +79,13 @@ const StorePrices = () => {
   const [nearbyStores, setNearbyStores] = useState<StoreLocation[]>([]);
   const [locating, setLocating] = useState(false);
   const [sortBy, setSortBy] = useState<"price" | "distance">("price");
+  const [manualLocation, setManualLocation] = useState("");
+
+  const applyLocation = useCallback((lat: number, lng: number) => {
+    setUserLocation({ lat, lng });
+    setNearbyStores(generateNearbyStores(lat, lng));
+    setSortBy("distance");
+  }, []);
 
   const handleGetLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -39,10 +95,7 @@ const StorePrices = () => {
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setUserLocation(loc);
-        setNearbyStores(generateNearbyStores(loc.lat, loc.lng));
-        setSortBy("distance");
+        applyLocation(pos.coords.latitude, pos.coords.longitude);
         setLocating(false);
         toast.success("Location found! Showing nearest stores.");
       },
@@ -51,7 +104,22 @@ const StorePrices = () => {
         toast.error("Unable to get your location. Please allow location access.");
       }
     );
-  }, []);
+  }, [applyLocation]);
+
+  const handleManualLocation = useCallback(() => {
+    const query = manualLocation.trim().toLowerCase();
+    if (!query) {
+      toast.error("Please enter a city name");
+      return;
+    }
+    const coords = CITY_COORDS[query];
+    if (coords) {
+      applyLocation(coords.lat, coords.lng);
+      toast.success(`Location set to ${manualLocation.trim()}! Showing nearest stores.`);
+    } else {
+      toast.error("City not found. Try a major US city (e.g. Chicago, Miami, Denver).");
+    }
+  }, [manualLocation, applyLocation]);
 
   const getStoreDistance = (storeName: string) => {
     if (!userLocation || nearbyStores.length === 0) return null;
@@ -114,19 +182,36 @@ const StorePrices = () => {
         transition={{ delay: 0.05 }}
         className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4"
       >
-        <Button
-          onClick={handleGetLocation}
-          disabled={locating}
-          variant={userLocation ? "secondary" : "default"}
-          className="gap-2"
-        >
-          {locating ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Navigation className="h-4 w-4" />
-          )}
-          {locating ? "Finding you…" : userLocation ? "Update Location" : "Use My Location"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={handleGetLocation}
+            disabled={locating}
+            variant={userLocation ? "secondary" : "default"}
+            className="gap-2"
+          >
+            {locating ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Navigation className="h-4 w-4" />
+            )}
+            {locating ? "Finding you…" : userLocation ? "Update" : "Use My Location"}
+          </Button>
+          <span className="text-sm text-muted-foreground">or</span>
+          <div className="relative flex-1 min-w-[180px]">
+            <MapPinned className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Type your city (e.g. Chicago)"
+              value={manualLocation}
+              onChange={(e) => setManualLocation(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleManualLocation()}
+              className="pl-10 text-sm"
+              maxLength={50}
+            />
+          </div>
+          <Button onClick={handleManualLocation} variant="outline" size="sm">
+            Set
+          </Button>
+        </div>
         {userLocation && (
           <span className="text-sm text-muted-foreground">
             📍 Location set — distances shown below
