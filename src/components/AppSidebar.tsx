@@ -1,4 +1,4 @@
-import { Package, MessageSquare, ShoppingCart, LayoutDashboard } from "lucide-react";
+import { Package, MessageSquare, ShoppingCart, LayoutDashboard, Wallet, Apple, BookOpen } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
@@ -6,7 +6,10 @@ const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: Package, label: "My Pantry", path: "/pantry" },
   { icon: MessageSquare, label: "Meal Planner", path: "/chat" },
-  { icon: ShoppingCart, label: "Store Prices", path: "/prices" },
+  { icon: ShoppingCart, label: "Best Prices", path: "/prices" },
+  { icon: Wallet, label: "Budget Finder", path: "/budget" },
+  { icon: Apple, label: "Nutrition", path: "/nutrition" },
+  { icon: BookOpen, label: "Community Blog", path: "/blog" },
 ];
 
 const AppSidebar = () => {

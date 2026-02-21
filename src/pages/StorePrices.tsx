@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Search, ArrowUpDown } from "lucide-react";
+import { Search, ArrowUpDown, Trophy, Tag, MapPin } from "lucide-react";
 import { mockStorePrices } from "@/data/mockData";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -23,21 +23,38 @@ const StorePrices = () => {
     return acc;
   }, {});
 
+  // Best deal hero card
+  const bestDeal = search.trim()
+    ? filtered.length > 0
+      ? filtered[0]
+      : null
+    : null;
+
+  const averagePrice =
+    bestDeal && filtered.length > 1
+      ? filtered
+          .filter((p) => p.item === bestDeal.item)
+          .reduce((sum, p) => sum + p.price, 0) /
+        filtered.filter((p) => p.item === bestDeal.item).length
+      : 0;
+
   return (
     <div>
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="font-display text-3xl font-bold">Store Prices</h1>
-        <p className="mt-1 text-muted-foreground">Compare grocery prices & find the best deals</p>
+        <h1 className="font-display text-3xl font-bold">Best Price Finder</h1>
+        <p className="mt-1 text-muted-foreground">
+          Search any food item to find the cheapest store in the city
+        </p>
       </motion.div>
 
       <div className="mt-6 flex items-center gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search items or stores..."
+            placeholder="🔍 Find best price for... (e.g. Eggs, Chicken, Rice)"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
+            className="pl-10 text-base"
           />
         </div>
         <button
@@ -48,6 +65,54 @@ const StorePrices = () => {
           {sortAsc ? "Low → High" : "High → Low"}
         </button>
       </div>
+
+      {/* Best Deal Hero Card */}
+      {bestDeal && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="mt-6 rounded-xl border-2 border-savings/30 bg-savings/5 p-6 shadow-sm"
+        >
+          <div className="flex items-center gap-2 text-savings font-semibold text-sm mb-2">
+            <Trophy className="h-5 w-5" />
+            BEST PRICE FOUND
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-display text-xl font-bold">{bestDeal.item}</h3>
+              <p className="flex items-center gap-1.5 mt-1 text-muted-foreground">
+                <MapPin className="h-4 w-4" /> {bestDeal.store}
+              </p>
+              <div className="flex gap-2 mt-2">
+                {bestDeal.onSale && (
+                  <Badge variant="secondary" className="bg-accent/10 text-accent text-xs">
+                    <Tag className="h-3 w-3 mr-1" /> ON SALE
+                  </Badge>
+                )}
+                {bestDeal.snapEligible && (
+                  <Badge variant="secondary" className="bg-snap/10 text-snap text-xs">
+                    SNAP OK
+                  </Badge>
+                )}
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="font-display text-4xl font-bold text-savings">
+                ${bestDeal.price.toFixed(2)}
+              </span>
+              {averagePrice > bestDeal.price && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Save{" "}
+                  <span className="font-semibold text-savings">
+                    ${(averagePrice - bestDeal.price).toFixed(2)}
+                  </span>{" "}
+                  vs avg
+                </p>
+              )}
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       <div className="mt-6 space-y-6">
         {Object.entries(grouped).map(([item, prices], i) => {
@@ -102,6 +167,11 @@ const StorePrices = () => {
             </motion.div>
           );
         })}
+        {Object.keys(grouped).length === 0 && (
+          <div className="rounded-xl border bg-card p-12 text-center text-muted-foreground">
+            No items found. Try searching for something else.
+          </div>
+        )}
       </div>
     </div>
   );

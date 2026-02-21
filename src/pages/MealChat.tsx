@@ -7,8 +7,18 @@ import { Button } from "@/components/ui/button";
 
 const mockResponses = [
   "Based on what's in your pantry, here's a great budget meal:\n\n**Chicken & Rice Bowl** 🍚\n- Sauté diced chicken breast with onions and bell peppers\n- Season with salt, pepper, and a pinch of cumin\n- Serve over rice with canned black beans on the side\n\n**Cost: ~$2.50 per serving** | Uses 4 pantry items | ~30 min prep",
-  "I found some great deals that match your list!\n\n🏷️ **SaveMart** has onions on sale for **$0.99** (3 lb bag) — that's 34% off!\n🏷️ **Walmart** has eggs for **$2.98** per dozen — cheapest in your area\n\nBoth are **SNAP-eligible**. Want me to build a shopping list?",
+  "I found some great deals that match your list!\n\n🏷️ **Aldi** has onions for **$0.89** (3 lb bag) — cheapest in the city!\n🏷️ **Costco** has eggs for **$2.19** per dozen\n🏷️ **Walmart** has pasta for **$0.98** per box — on sale!\n\nAll are **SNAP-eligible**. Want me to build a shopping list?",
   "Here's a **3-day meal plan** using mostly what you have:\n\n**Day 1:** Chicken stir-fry with peppers & rice\n**Day 2:** Black bean tacos with tomato salsa (just need tortillas — $1.29 at Walmart)\n**Day 3:** Egg fried rice with leftover veggies\n\n**Total additional cost: ~$3.80** | All SNAP-eligible 🎉",
+  "💰 **Under $5 Budget Plan:**\n\nWith $5 you can make **3 meals**:\n1. **Rice & Beans Classic** — $1.20 (2 servings)\n2. **Simple Omelette** — $1.50 (1 serving)\n3. **French Toast** — $1.80 (2 servings)\n\n**Total: $4.50** | **5 servings** | $0.90/serving average\n\nAll ingredients are in your pantry!",
+  "👨‍🍳 **Chef Marcus's Top Budget Picks:**\n\n1. **Rice & Beans Classic** — The foundation of budget cooking. Add cumin, garlic, and a squeeze of lime for restaurant flavor. ($0.60/serving)\n\n2. **Chef's Pantry Soup** — Use whatever veggies are about to expire. Add chicken for protein. ($1.18/serving)\n\n3. **French Toast** — A chef's secret: stale bread actually makes BETTER French toast! ($0.90/serving)\n\n*\"Great cooking is about technique, not expensive ingredients.\"* — Chef Marcus",
+  "🔍 **Cheapest ingredients for Chicken Stir-Fry:**\n\n| Ingredient | Best Store | Price |\n|---|---|---|\n| Chicken Breast | Costco | $2.49/lb |\n| Bell Peppers | Aldi | $0.49 each |\n| Onions | Aldi | $0.89/3 lb |\n| Rice | Walmart | $1.98/2 lb |\n\n**Total: ~$5.85** for 2 servings\n**Savings vs average prices: $2.40** 💚",
+];
+
+const quickActions = [
+  { label: "🍳 What can I cook?", message: "What can I cook with what I have in my pantry?" },
+  { label: "👨‍🍳 Chef picks", message: "Show me chef-recommended budget meals" },
+  { label: "💰 $5 meal plan", message: "What meals can I make with a $5 budget?" },
+  { label: "🔍 Cheapest for...", message: "Find the cheapest ingredients for chicken stir-fry" },
 ];
 
 const MealChat = () => {
@@ -22,13 +32,14 @@ const MealChat = () => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const sendMessage = () => {
-    if (!input.trim()) return;
+  const sendMessage = (text?: string) => {
+    const msg = text || input;
+    if (!msg.trim()) return;
 
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
       role: "user",
-      content: input,
+      content: msg,
       timestamp: new Date(),
     };
     setMessages((prev) => [...prev, userMsg]);
@@ -97,7 +108,20 @@ const MealChat = () => {
           <div ref={endRef} />
         </div>
 
-        <div className="border-t p-4">
+        <div className="border-t p-4 space-y-3">
+          {/* Quick action chips */}
+          <div className="flex gap-2 flex-wrap">
+            {quickActions.map((action) => (
+              <button
+                key={action.label}
+                onClick={() => sendMessage(action.message)}
+                disabled={isTyping}
+                className="rounded-full border bg-muted/50 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary hover:border-primary/30 disabled:opacity-50"
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
           <form
             onSubmit={(e) => {
               e.preventDefault();
