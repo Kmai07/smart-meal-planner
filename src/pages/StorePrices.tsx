@@ -1,13 +1,65 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Search, ArrowUpDown, Trophy, Tag, MapPin } from "lucide-react";
-import { mockStorePrices } from "@/data/mockData";
+import { Search, ArrowUpDown, Trophy, Tag, MapPin, Navigation, Loader2 } from "lucide-react";
+import { mockStorePrices, storeLocations } from "@/data/mockData";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+
+function getDistanceKm(lat1: number, lng1: number, lat2: number, lng2: number) {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function kmToMiles(km: number) {
+  return km * 0.621371;
+}
 
 const StorePrices = () => {
   const [search, setSearch] = useState("");
   const [sortAsc, setSortAsc] = useState(true);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [sortBy, setSortBy] = useState<"price" | "distance">("price");
+
+  const handleGetLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      toast.error("Geolocation is not supported by your browser");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setSortBy("distance");
+        setLocating(false);
+        toast.success("Location found! Showing nearest stores.");
+      },
+      () => {
+        setLocating(false);
+        toast.error("Unable to get your location. Please allow location access.");
+      }
+    );
+  }, []);
+
+  const getStoreDistance = (storeName: string) => {
+    if (!userLocation) return null;
+    const loc = storeLocations.find((s) => s.name === storeName);
+    if (!loc) return null;
+    return kmToMiles(getDistanceKm(userLocation.lat, userLocation.lng, loc.lat, loc.lng));
+  };
+
+  const getStoreAddress = (storeName: string) => {
+    return storeLocations.find((s) => s.name === storeName)?.address || "";
+  };
 
   const filtered = mockStorePrices
     .filter(
@@ -15,15 +67,20 @@ const StorePrices = () => {
         p.item.toLowerCase().includes(search.toLowerCase()) ||
         p.store.toLowerCase().includes(search.toLowerCase())
     )
-    .sort((a, b) => (sortAsc ? a.price - b.price : b.price - a.price));
+    .sort((a, b) => {
+      if (sortBy === "distance" && userLocation) {
+        const distA = getStoreDistance(a.store) ?? 999;
+        const distB = getStoreDistance(b.store) ?? 999;
+        return distA - distB;
+      }
+      return sortAsc ? a.price - b.price : b.price - a.price;
+    });
 
-  // Group by item
   const grouped = filtered.reduce<Record<string, typeof mockStorePrices>>((acc, p) => {
     (acc[p.item] = acc[p.item] || []).push(p);
     return acc;
   }, {});
 
-  // Best deal hero card
   const bestDeal = search.trim()
     ? filtered.length > 0
       ? filtered[0]
@@ -47,7 +104,52 @@ const StorePrices = () => {
         </p>
       </motion.div>
 
-      <div className="mt-6 flex items-center gap-3">
+      {/* Location Bar */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+        className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4"
+      >
+        <Button
+          onClick={handleGetLocation}
+          disabled={locating}
+          variant={userLocation ? "secondary" : "default"}
+          className="gap-2"
+        >
+          {locating ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Navigation className="h-4 w-4" />
+          )}
+          {locating ? "Finding you…" : userLocation ? "Update Location" : "Use My Location"}
+        </Button>
+        {userLocation && (
+          <span className="text-sm text-muted-foreground">
+            📍 Location set — distances shown below
+          </span>
+        )}
+        {userLocation && (
+          <div className="ml-auto flex gap-2">
+            <Button
+              size="sm"
+              variant={sortBy === "price" ? "default" : "outline"}
+              onClick={() => setSortBy("price")}
+            >
+              Sort by Price
+            </Button>
+            <Button
+              size="sm"
+              variant={sortBy === "distance" ? "default" : "outline"}
+              onClick={() => setSortBy("distance")}
+            >
+              Sort by Nearest
+            </Button>
+          </div>
+        )}
+      </motion.div>
+
+      <div className="mt-4 flex items-center gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -82,7 +184,16 @@ const StorePrices = () => {
               <h3 className="font-display text-xl font-bold">{bestDeal.item}</h3>
               <p className="flex items-center gap-1.5 mt-1 text-muted-foreground">
                 <MapPin className="h-4 w-4" /> {bestDeal.store}
+                {getStoreAddress(bestDeal.store) && (
+                  <span className="text-xs"> — {getStoreAddress(bestDeal.store)}</span>
+                )}
               </p>
+              {getStoreDistance(bestDeal.store) !== null && (
+                <p className="flex items-center gap-1.5 mt-1 text-sm text-muted-foreground">
+                  <Navigation className="h-3.5 w-3.5" />
+                  {getStoreDistance(bestDeal.store)!.toFixed(1)} mi away
+                </p>
+              )}
               <div className="flex gap-2 mt-2">
                 {bestDeal.onSale && (
                   <Badge variant="secondary" className="bg-accent/10 text-accent text-xs">
@@ -127,42 +238,58 @@ const StorePrices = () => {
             >
               <h3 className="font-display text-lg font-semibold">{item}</h3>
               <div className="mt-3 space-y-2">
-                {prices.map((price, j) => (
-                  <div
-                    key={j}
-                    className={`flex items-center justify-between rounded-lg px-4 py-3 transition-colors ${
-                      price.price === lowestPrice
-                        ? "bg-savings/10 border border-savings/20"
-                        : "bg-muted/50"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="font-medium">{price.store}</span>
-                      <div className="flex gap-2">
-                        {price.onSale && (
-                          <Badge variant="secondary" className="bg-accent/10 text-accent text-xs">
-                            SALE
+                {prices.map((price, j) => {
+                  const dist = getStoreDistance(price.store);
+                  return (
+                    <div
+                      key={j}
+                      className={`flex items-center justify-between rounded-lg px-4 py-3 transition-colors ${
+                        price.price === lowestPrice
+                          ? "bg-savings/10 border border-savings/20"
+                          : "bg-muted/50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div>
+                          <span className="font-medium">{price.store}</span>
+                          {getStoreAddress(price.store) && (
+                            <p className="text-xs text-muted-foreground">
+                              {getStoreAddress(price.store)}
+                            </p>
+                          )}
+                        </div>
+                        {dist !== null && (
+                          <Badge variant="outline" className="text-xs gap-1">
+                            <Navigation className="h-3 w-3" />
+                            {dist.toFixed(1)} mi
                           </Badge>
                         )}
-                        {price.snapEligible && (
-                          <Badge variant="secondary" className="bg-snap/10 text-snap text-xs">
-                            SNAP
-                          </Badge>
+                        <div className="flex gap-2">
+                          {price.onSale && (
+                            <Badge variant="secondary" className="bg-accent/10 text-accent text-xs">
+                              SALE
+                            </Badge>
+                          )}
+                          {price.snapEligible && (
+                            <Badge variant="secondary" className="bg-snap/10 text-snap text-xs">
+                              SNAP
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {price.price === lowestPrice && (
+                          <span className="text-xs font-semibold text-savings">BEST PRICE</span>
                         )}
+                        <span className={`font-display text-xl font-bold ${
+                          price.price === lowestPrice ? "text-savings" : "text-foreground"
+                        }`}>
+                          ${price.price.toFixed(2)}
+                        </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {price.price === lowestPrice && (
-                        <span className="text-xs font-semibold text-savings">BEST PRICE</span>
-                      )}
-                      <span className={`font-display text-xl font-bold ${
-                        price.price === lowestPrice ? "text-savings" : "text-foreground"
-                      }`}>
-                        ${price.price.toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </motion.div>
           );
