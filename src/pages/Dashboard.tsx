@@ -1,51 +1,111 @@
 import { motion } from "framer-motion";
-import { TrendingDown, AlertTriangle, Leaf, DollarSign } from "lucide-react";
-import { mockInventory, mockStorePrices } from "@/data/mockData";
-
-const statCards = [
-  {
-    label: "Pantry Items",
-    value: "10",
-    sub: "3 expiring soon",
-    icon: Leaf,
-    color: "bg-primary/10 text-primary",
-  },
-  {
-    label: "Weekly Budget Left",
-    value: "$142.50",
-    sub: "60% remaining",
-    icon: DollarSign,
-    color: "bg-savings/10 text-savings",
-  },
-  {
-    label: "Best Deal Today",
-    value: "$0.99",
-    sub: "Onions at SaveMart",
-    icon: TrendingDown,
-    color: "bg-accent/10 text-accent",
-  },
-  {
-    label: "Expiring Soon",
-    value: "3",
-    sub: "Chicken, Bread, Tomatoes",
-    icon: AlertTriangle,
-    color: "bg-warning/10 text-warning",
-  },
-];
+import { TrendingDown, AlertTriangle, Leaf, DollarSign, BookOpen, Loader2 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import { mockStorePrices } from "@/data/mockData";
 
 const Dashboard = () => {
-  const expiringItems = mockInventory
-    .filter((i) => i.expiresIn !== undefined && i.expiresIn <= 5)
-    .sort((a, b) => (a.expiresIn ?? 0) - (b.expiresIn ?? 0));
+  const { user } = useAuth();
+
+  const { data: pantryItems = [], isLoading: pantryLoading } = useQuery({
+    queryKey: ["pantry-dashboard", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pantry_items")
+        .select("*")
+        .eq("user_id", user!.id)
+        .order("expires_in", { ascending: true, nullsFirst: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  const { data: blogPosts = [], isLoading: blogLoading } = useQuery({
+    queryKey: ["blog-dashboard", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("blog_posts")
+        .select("*")
+        .eq("user_id", user!.id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  const { data: profile, isLoading: profileLoading } = useQuery({
+    queryKey: ["profile-dashboard", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  const isLoading = pantryLoading || blogLoading || profileLoading;
+
+  const expiringItems = pantryItems.filter((i) => i.expires_in !== null && i.expires_in <= 5);
+  const totalPantryItems = pantryItems.length;
+  const expiringSoonCount = expiringItems.length;
 
   const bestDeals = mockStorePrices
     .filter((p) => p.onSale)
-    .sort((a, b) => a.price - b.price);
+    .sort((a, b) => a.price - b.price)
+    .slice(0, 5);
+
+  const displayName = profile?.display_name || user?.email?.split("@")[0] || "there";
+
+  const statCards = [
+    {
+      label: "Pantry Items",
+      value: String(totalPantryItems),
+      sub: `${expiringSoonCount} expiring soon`,
+      icon: Leaf,
+      color: "bg-primary/10 text-primary",
+    },
+    {
+      label: "Weekly Budget Left",
+      value: "$142.50",
+      sub: "60% remaining",
+      icon: DollarSign,
+      color: "bg-savings/10 text-savings",
+    },
+    {
+      label: "Best Deal Today",
+      value: bestDeals.length > 0 ? `$${bestDeals[0].price.toFixed(2)}` : "—",
+      sub: bestDeals.length > 0 ? `${bestDeals[0].item.split("(")[0].trim()} at ${bestDeals[0].store}` : "No deals",
+      icon: TrendingDown,
+      color: "bg-accent/10 text-accent",
+    },
+    {
+      label: "Blog Posts",
+      value: String(blogPosts.length),
+      sub: blogPosts.length > 0 ? `Latest: ${blogPosts[0].title.slice(0, 20)}…` : "No posts yet",
+      icon: BookOpen,
+      color: "bg-warning/10 text-warning",
+    },
+  ];
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div>
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-        <h1 className="font-display text-3xl font-bold">Good morning 👋</h1>
+        <h1 className="font-display text-3xl font-bold">Good morning, {displayName} 👋</h1>
         <p className="mt-1 text-muted-foreground">Here's your kitchen overview for today.</p>
       </motion.div>
 
@@ -81,23 +141,27 @@ const Dashboard = () => {
           <h2 className="font-display text-lg font-semibold">⏰ Expiring Soon</h2>
           <p className="mb-4 text-sm text-muted-foreground">Use these up first to reduce waste</p>
           <div className="space-y-3">
-            {expiringItems.map((item) => (
-              <div key={item.id} className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3">
-                <div>
-                  <p className="font-medium">{item.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {item.quantity} {item.unit}
-                  </p>
+            {expiringItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">No items expiring soon. Add items to your pantry!</p>
+            ) : (
+              expiringItems.map((item) => (
+                <div key={item.id} className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3">
+                  <div>
+                    <p className="font-medium">{item.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {item.quantity} {item.unit}
+                    </p>
+                  </div>
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    (item.expires_in ?? 0) <= 3
+                      ? "bg-destructive/10 text-destructive"
+                      : "bg-warning/10 text-warning"
+                  }`}>
+                    {item.expires_in}d left
+                  </span>
                 </div>
-                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                  (item.expiresIn ?? 0) <= 3
-                    ? "bg-destructive/10 text-destructive"
-                    : "bg-warning/10 text-warning"
-                }`}>
-                  {item.expiresIn}d left
-                </span>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </motion.div>
 
