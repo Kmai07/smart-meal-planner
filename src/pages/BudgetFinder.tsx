@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { DollarSign, ChefHat, Users, Tag, Clock, CookingPot, ChevronDown, ChevronUp } from "lucide-react";
-import { mockMeals } from "@/data/mockData";
+import { worldMeals } from "@/data/worldMeals";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ const BudgetFinder = () => {
   const [expandedMeal, setExpandedMeal] = useState<string | null>(null);
 
   const budgetNum = parseFloat(budget) || 0;
-  const results = mockMeals
+  const results = worldMeals
     .filter((m) => m.totalCost <= budgetNum)
     .sort((a, b) => a.totalCost - b.totalCost);
 
