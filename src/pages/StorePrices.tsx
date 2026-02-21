@@ -213,15 +213,32 @@ const StorePrices = () => {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const getStoreDistance = (storeName: string) => {
-    if (!userLocation || nearbyStores.length === 0) return null;
-    const loc = nearbyStores.find((s) => s.name === storeName);
-    if (!loc) return null;
-    return kmToMiles(getDistanceKm(userLocation.lat, userLocation.lng, loc.lat, loc.lng));
+  // Map mock store names to real nearby stores when available
+  const mockStoreNames = [...new Set(mockStorePrices.map((p) => p.store))];
+  const storeNameMapping = new Map<string, RealStore>();
+  if (nearbyStores.length > 0) {
+    mockStoreNames.forEach((mockName, i) => {
+      if (i < nearbyStores.length) {
+        storeNameMapping.set(mockName, nearbyStores[i]);
+      }
+    });
+  }
+
+  const getRealStoreName = (mockName: string) => {
+    return storeNameMapping.get(mockName)?.name || mockName;
   };
 
-  const getStoreAddress = (storeName: string) => {
-    return nearbyStores.find((s) => s.name === storeName)?.address || "";
+  const getRealStoreAddress = (mockName: string) => {
+    return storeNameMapping.get(mockName)?.address || "";
+  };
+
+  const getRealStoreDistance = (storeName: string) => {
+    if (!userLocation) return null;
+    // Check mapping first, then direct match in nearbyStores
+    const mapped = [...storeNameMapping.values()].find((s) => s.name === storeName);
+    const store = mapped || nearbyStores.find((s) => s.name === storeName);
+    if (!store) return null;
+    return kmToMiles(getDistanceKm(userLocation.lat, userLocation.lng, store.lat, store.lng));
   };
 
   // Build unified price list from local + live
@@ -229,17 +246,19 @@ const StorePrices = () => {
     .filter(
       (p) =>
         p.item.toLowerCase().includes(search.toLowerCase()) ||
-        p.store.toLowerCase().includes(search.toLowerCase())
+        p.store.toLowerCase().includes(search.toLowerCase()) ||
+        getRealStoreName(p.store).toLowerCase().includes(search.toLowerCase())
     );
 
   const localUnified: UnifiedPrice[] = localFiltered.map((p, i) => ({
     id: `local-${i}`,
     item: p.item,
-    store: p.store,
+    store: getRealStoreName(p.store),
     price: p.price,
     source: "local" as const,
     onSale: p.onSale,
     snapEligible: p.snapEligible,
+    storeCity: getRealStoreAddress(p.store),
   }));
 
   const liveUnified: UnifiedPrice[] = liveResults.map((p) => ({
@@ -259,8 +278,8 @@ const StorePrices = () => {
 
   const allPrices = [...localUnified, ...liveUnified].sort((a, b) => {
     if (sortBy === "distance" && userLocation && a.source === "local" && b.source === "local") {
-      const distA = getStoreDistance(a.store) ?? 999;
-      const distB = getStoreDistance(b.store) ?? 999;
+      const distA = getRealStoreDistance(a.store) ?? 999;
+      const distB = getRealStoreDistance(b.store) ?? 999;
       return distA - distB;
     }
     return sortAsc ? a.price - b.price : b.price - a.price;
@@ -517,17 +536,17 @@ const StorePrices = () => {
               <h3 className="font-display text-xl font-bold">{bestDeal.item}</h3>
               <p className="flex items-center gap-1.5 mt-1 text-muted-foreground">
                 <MapPin className="h-4 w-4" /> {bestDeal.store}
-                {bestDeal.source === "local" && getStoreAddress(bestDeal.store) && (
-                  <span className="text-xs"> — {getStoreAddress(bestDeal.store)}</span>
+                {bestDeal.source === "local" && bestDeal.storeCity && (
+                   <span className="text-xs"> — {bestDeal.storeCity}</span>
                 )}
                 {bestDeal.source === "live" && bestDeal.storeCity && (
                   <span className="text-xs"> — {bestDeal.storeCity}</span>
                 )}
               </p>
-              {bestDeal.source === "local" && getStoreDistance(bestDeal.store) !== null && (
+              {bestDeal.source === "local" && getRealStoreDistance(bestDeal.store) !== null && (
                 <p className="flex items-center gap-1.5 mt-1 text-sm text-muted-foreground">
-                  <Navigation className="h-3.5 w-3.5" />
-                  {getStoreDistance(bestDeal.store)!.toFixed(1)} mi away
+                   <Navigation className="h-3.5 w-3.5" />
+                   {getRealStoreDistance(bestDeal.store)!.toFixed(1)} mi away
                 </p>
               )}
               <div className="flex gap-2 mt-2">
@@ -581,7 +600,7 @@ const StorePrices = () => {
               <h3 className="font-display text-lg font-semibold">{item}</h3>
               <div className="mt-3 space-y-2">
                 {prices.map((price) => {
-                  const dist = price.source === "local" ? getStoreDistance(price.store) : null;
+                  const dist = price.source === "local" ? getRealStoreDistance(price.store) : null;
                   return (
                     <div
                       key={price.id}
@@ -594,9 +613,9 @@ const StorePrices = () => {
                       <div className="flex items-center gap-3 flex-wrap">
                         <div>
                           <span className="font-medium">{price.store}</span>
-                          {price.source === "local" && getStoreAddress(price.store) && (
-                            <p className="text-xs text-muted-foreground">
-                              {getStoreAddress(price.store)}
+                          {price.source === "local" && price.storeCity && (
+                             <p className="text-xs text-muted-foreground">
+                               {price.storeCity}
                             </p>
                           )}
                           {price.source === "live" && price.storeCity && (
