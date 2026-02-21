@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Send } from "lucide-react";
+import { Send, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +11,31 @@ interface ChatMessage {
   content: string;
 }
 
+const STORAGE_KEY = "nourishai-chat-history";
+
+const defaultMessage: ChatMessage = {
+  id: "1",
+  role: "assistant",
+  content: "👋 Hi! I'm your **Smart Meal Planner**. I can help you create budget-friendly meals from what's already in your pantry, find the best grocery deals, and make sure everything fits your dietary needs and SNAP budget.\n\nWhat would you like help with today?",
+};
+
+function loadChatHistory(): ChatMessage[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return [defaultMessage];
+}
+
+function saveChatHistory(messages: ChatMessage[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+  } catch {}
+}
+
 const quickActions = [
   { label: "🍳 What can I cook?", message: "What can I cook with what I have in my pantry?" },
   { label: "👨‍🍳 Chef picks", message: "Show me chef-recommended budget meals" },
@@ -19,20 +44,23 @@ const quickActions = [
 ];
 
 const MealChat = () => {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "1",
-      role: "assistant",
-      content: "👋 Hi! I'm your **Smart Meal Planner**. I can help you create budget-friendly meals from what's already in your pantry, find the best grocery deals, and make sure everything fits your dietary needs and SNAP budget.\n\nWhat would you like help with today?",
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>(loadChatHistory);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
+  // Save to localStorage whenever messages change
+  useEffect(() => {
+    saveChatHistory(messages);
+  }, [messages]);
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  const clearHistory = useCallback(() => {
+    setMessages([defaultMessage]);
+  }, []);
 
   const sendMessage = async (text?: string) => {
     const msg = text || input;
@@ -61,9 +89,16 @@ const MealChat = () => {
 
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col">
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="font-display text-3xl font-bold">Meal Planner</h1>
-        <p className="mt-1 text-muted-foreground">AI-powered meal suggestions based on your pantry & budget</p>
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
+        <div>
+          <h1 className="font-display text-3xl font-bold">Meal Planner</h1>
+          <p className="mt-1 text-muted-foreground">AI-powered meal suggestions based on your pantry & budget</p>
+        </div>
+        {messages.length > 1 && (
+          <Button variant="ghost" size="sm" onClick={clearHistory} className="gap-2 text-muted-foreground">
+            <Trash2 className="h-4 w-4" /> Clear Chat
+          </Button>
+        )}
       </motion.div>
 
       <div className="mt-6 flex flex-1 flex-col rounded-xl border bg-card shadow-sm overflow-hidden">
