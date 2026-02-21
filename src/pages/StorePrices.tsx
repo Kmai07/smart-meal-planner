@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Search, ArrowUpDown, Trophy, Tag, MapPin, Navigation, Loader2, MapPinned } from "lucide-react";
-import { mockStorePrices, generateNearbyStores, type StoreLocation } from "@/data/mockData";
+import { mockStorePrices, generateNearbyStores, twinCitiesZipCodes, type StoreLocation } from "@/data/mockData";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,8 +40,12 @@ const StorePrices = () => {
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searchingAddress, setSearchingAddress] = useState(false);
+  const [zipSearch, setZipSearch] = useState("");
+  const [zipSuggestions, setZipSuggestions] = useState<{ zip: string; label: string }[]>([]);
+  const [showZipSuggestions, setShowZipSuggestions] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
+  const zipRef = useRef<HTMLDivElement>(null);
 
   const applyLocation = useCallback((lat: number, lng: number, label?: string) => {
     setUserLocation({ lat, lng });
@@ -108,11 +112,42 @@ const StorePrices = () => {
     toast.success("Location set! Showing nearest stores.");
   }, [applyLocation]);
 
+  // Zip code search for Twin Cities
+  const handleZipInput = useCallback((value: string) => {
+    const cleaned = value.replace(/\D/g, "").slice(0, 5);
+    setZipSearch(cleaned);
+    if (cleaned.length >= 3) {
+      const matches = Object.entries(twinCitiesZipCodes)
+        .filter(([zip]) => zip.startsWith(cleaned))
+        .slice(0, 6)
+        .map(([zip, data]) => ({ zip, label: data.label }));
+      setZipSuggestions(matches);
+      setShowZipSuggestions(matches.length > 0);
+    } else {
+      setZipSuggestions([]);
+      setShowZipSuggestions(false);
+    }
+  }, []);
+
+  const handleSelectZip = useCallback((zip: string) => {
+    const data = twinCitiesZipCodes[zip];
+    if (data) {
+      applyLocation(data.lat, data.lng, `${zip} — ${data.label}`);
+      setZipSearch(zip);
+      setShowZipSuggestions(false);
+      setZipSuggestions([]);
+      toast.success(`Location set to ${data.label}`);
+    }
+  }, [applyLocation]);
+
   // Close suggestions on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
         setShowSuggestions(false);
+      }
+      if (zipRef.current && !zipRef.current.contains(e.target as Node)) {
+        setShowZipSuggestions(false);
       }
     };
     document.addEventListener("mousedown", handler);
@@ -195,10 +230,38 @@ const StorePrices = () => {
             {locating ? "Finding you…" : userLocation ? "Update" : "Use My Location"}
           </Button>
           <span className="text-sm text-muted-foreground">or</span>
+          <div className="relative min-w-[140px] max-w-[180px]" ref={zipRef}>
+            <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Zip code"
+              value={zipSearch}
+              onChange={(e) => handleZipInput(e.target.value)}
+              onFocus={() => zipSuggestions.length > 0 && setShowZipSuggestions(true)}
+              className="pl-10 text-sm"
+              maxLength={5}
+              inputMode="numeric"
+            />
+            {showZipSuggestions && zipSuggestions.length > 0 && (
+              <div className="absolute z-50 mt-1 w-[280px] rounded-lg border bg-popover shadow-lg max-h-60 overflow-auto">
+                {zipSuggestions.map((s) => (
+                  <button
+                    key={s.zip}
+                    onClick={() => handleSelectZip(s.zip)}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-muted transition-colors border-b last:border-b-0"
+                  >
+                    <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="font-medium">{s.zip}</span>
+                    <span className="text-muted-foreground truncate">{s.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <span className="text-sm text-muted-foreground">or</span>
           <div className="relative flex-1 min-w-[220px]" ref={suggestionsRef}>
             <MapPinned className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search address (e.g. 123 Main St, Chicago)"
+              placeholder="Search address..."
               value={manualLocation}
               onChange={(e) => handleAddressInput(e.target.value)}
               onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
