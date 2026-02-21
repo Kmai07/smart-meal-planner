@@ -1,4 +1,5 @@
-import { Package, MessageSquare, ShoppingCart, LayoutDashboard, Wallet, Apple, BookOpen, LogOut } from "lucide-react";
+import { useState } from "react";
+import { Package, MessageSquare, ShoppingCart, LayoutDashboard, Wallet, Apple, BookOpen, LogOut, MinusCircle } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -16,6 +17,15 @@ const navItems = [
 const AppSidebar = () => {
   const location = useLocation();
   const { signOut, user } = useAuth();
+  const [snapBalance, setSnapBalance] = useState(15.0);
+
+  const handleDeduction = () => {
+    setSnapBalance((prev) => parseFloat((prev - 3.5).toFixed(2)));
+  };
+
+  const totalBudget = 15.0;
+  const used = parseFloat((totalBudget - snapBalance).toFixed(2));
+  const percentRemaining = Math.max(0, snapBalance / totalBudget);
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
@@ -51,12 +61,33 @@ const AppSidebar = () => {
       </nav>
 
       <div className="mx-3 mb-2 rounded-lg bg-sidebar-accent p-4">
-        <p className="text-xs font-semibold text-sidebar-primary">SNAP Budget</p>
-        <p className="mt-1 font-display text-2xl font-bold text-sidebar-primary-foreground">$142.50</p>
-        <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-sidebar-border">
-          <div className="h-full w-3/5 rounded-full bg-sidebar-primary transition-all" />
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold text-sidebar-primary">SNAP Budget</p>
+          <button
+            onClick={handleDeduction}
+            className="flex items-center gap-1 rounded-md bg-sidebar-primary/10 px-2 py-1 text-xs font-medium text-sidebar-primary hover:bg-sidebar-primary/20 transition-colors"
+          >
+            <MinusCircle className="h-3 w-3" />
+            −$3.50
+          </button>
         </div>
-        <p className="mt-1 text-xs text-sidebar-foreground/60">$85.50 of $228 used this month</p>
+        <p className="mt-1 font-display text-2xl font-bold text-sidebar-primary-foreground">
+          ${snapBalance.toFixed(2)}
+        </p>
+        <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-sidebar-border">
+          <div
+            className="h-full rounded-full bg-sidebar-primary transition-all"
+            style={{ width: `${percentRemaining * 100}%` }}
+          />
+        </div>
+        <p className="mt-1 text-xs text-sidebar-foreground/60">
+          ${used.toFixed(2)} of ${totalBudget.toFixed(2)} used
+        </p>
+        {snapBalance < 0 && (
+          <p className="mt-2 text-xs font-semibold text-destructive">
+            ⚠️ Insufficient SNAP Funds
+          </p>
+        )}
       </div>
 
       <div className="mx-3 mb-4">
