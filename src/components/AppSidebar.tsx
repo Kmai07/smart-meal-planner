@@ -1,6 +1,7 @@
-import { Package, MessageSquare, ShoppingCart, LayoutDashboard, Wallet, Apple, BookOpen } from "lucide-react";
+import { Package, MessageSquare, ShoppingCart, LayoutDashboard, Wallet, Apple, BookOpen, LogOut } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -14,6 +15,7 @@ const navItems = [
 
 const AppSidebar = () => {
   const location = useLocation();
+  const { signOut, user } = useAuth();
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
@@ -48,13 +50,26 @@ const AppSidebar = () => {
         })}
       </nav>
 
-      <div className="mx-3 mb-4 rounded-lg bg-sidebar-accent p-4">
+      <div className="mx-3 mb-2 rounded-lg bg-sidebar-accent p-4">
         <p className="text-xs font-semibold text-sidebar-primary">SNAP Budget</p>
         <p className="mt-1 font-display text-2xl font-bold text-sidebar-primary-foreground">$142.50</p>
         <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-sidebar-border">
           <div className="h-full w-3/5 rounded-full bg-sidebar-primary transition-all" />
         </div>
         <p className="mt-1 text-xs text-sidebar-foreground/60">$85.50 of $228 used this month</p>
+      </div>
+
+      <div className="mx-3 mb-4">
+        <button
+          onClick={signOut}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+        >
+          <LogOut className="h-5 w-5" />
+          Sign Out
+        </button>
+        {user && (
+          <p className="px-3 mt-1 text-xs text-sidebar-foreground/50 truncate">{user.email}</p>
+        )}
       </div>
     </aside>
   );
