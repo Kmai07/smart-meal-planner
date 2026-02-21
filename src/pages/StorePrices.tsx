@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Search, ArrowUpDown, Trophy, Tag, MapPin, Navigation, Loader2, MapPinned } from "lucide-react";
 import { mockStorePrices, generateNearbyStores, type StoreLocation } from "@/data/mockData";
@@ -7,54 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
-// Simple city lookup for typed locations (no external API needed)
-const CITY_COORDS: Record<string, { lat: number; lng: number }> = {
-  "new york": { lat: 40.7128, lng: -74.006 },
-  "nyc": { lat: 40.7128, lng: -74.006 },
-  "los angeles": { lat: 34.0522, lng: -118.2437 },
-  "la": { lat: 34.0522, lng: -118.2437 },
-  "chicago": { lat: 41.8781, lng: -87.6298 },
-  "houston": { lat: 29.7604, lng: -95.3698 },
-  "phoenix": { lat: 33.4484, lng: -112.074 },
-  "philadelphia": { lat: 39.9526, lng: -75.1652 },
-  "san antonio": { lat: 29.4241, lng: -98.4936 },
-  "san diego": { lat: 32.7157, lng: -117.1611 },
-  "dallas": { lat: 32.7767, lng: -96.797 },
-  "san francisco": { lat: 37.7749, lng: -122.4194 },
-  "sf": { lat: 37.7749, lng: -122.4194 },
-  "seattle": { lat: 47.6062, lng: -122.3321 },
-  "denver": { lat: 39.7392, lng: -104.9903 },
-  "boston": { lat: 42.3601, lng: -71.0589 },
-  "atlanta": { lat: 33.749, lng: -84.388 },
-  "miami": { lat: 25.7617, lng: -80.1918 },
-  "detroit": { lat: 42.3314, lng: -83.0458 },
-  "minneapolis": { lat: 44.9778, lng: -93.265 },
-  "portland": { lat: 45.5152, lng: -122.6784 },
-  "austin": { lat: 30.2672, lng: -97.7431 },
-  "nashville": { lat: 36.1627, lng: -86.7816 },
-  "charlotte": { lat: 35.2271, lng: -80.8431 },
-  "orlando": { lat: 28.5383, lng: -81.3792 },
-  "washington": { lat: 38.9072, lng: -77.0369 },
-  "dc": { lat: 38.9072, lng: -77.0369 },
-  "las vegas": { lat: 36.1699, lng: -115.1398 },
-  "memphis": { lat: 35.1495, lng: -90.049 },
-  "baltimore": { lat: 39.2904, lng: -76.6122 },
-  "milwaukee": { lat: 43.0389, lng: -87.9065 },
-  "albuquerque": { lat: 35.0844, lng: -106.6504 },
-  "tucson": { lat: 32.2226, lng: -110.9747 },
-  "fresno": { lat: 36.7378, lng: -119.7871 },
-  "sacramento": { lat: 38.5816, lng: -121.4944 },
-  "kansas city": { lat: 39.0997, lng: -94.5786 },
-  "mesa": { lat: 33.4152, lng: -111.8315 },
-  "omaha": { lat: 41.2565, lng: -95.9345 },
-  "cleveland": { lat: 41.4993, lng: -81.6944 },
-  "pittsburgh": { lat: 40.4406, lng: -79.9959 },
-  "raleigh": { lat: 35.7796, lng: -78.6382 },
-  "indianapolis": { lat: 39.7684, lng: -86.1581 },
-  "st louis": { lat: 38.627, lng: -90.1994 },
-  "tampa": { lat: 27.9506, lng: -82.4572 },
-  "louisville": { lat: 38.2527, lng: -85.7585 },
-};
+interface AddressSuggestion {
+  display_name: string;
+  lat: string;
+  lon: string;
+}
 
 function getDistanceKm(lat1: number, lng1: number, lat2: number, lng2: number) {
   const R = 6371;
@@ -80,11 +37,19 @@ const StorePrices = () => {
   const [locating, setLocating] = useState(false);
   const [sortBy, setSortBy] = useState<"price" | "distance">("price");
   const [manualLocation, setManualLocation] = useState("");
+  const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [searchingAddress, setSearchingAddress] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
 
-  const applyLocation = useCallback((lat: number, lng: number) => {
+  const applyLocation = useCallback((lat: number, lng: number, label?: string) => {
     setUserLocation({ lat, lng });
     setNearbyStores(generateNearbyStores(lat, lng));
     setSortBy("distance");
+    if (label) setManualLocation(label);
+    setShowSuggestions(false);
+    setSuggestions([]);
   }, []);
 
   const handleGetLocation = useCallback(() => {
@@ -106,20 +71,53 @@ const StorePrices = () => {
     );
   }, [applyLocation]);
 
-  const handleManualLocation = useCallback(() => {
-    const query = manualLocation.trim().toLowerCase();
-    if (!query) {
-      toast.error("Please enter a city name");
+  // Debounced address search via Nominatim
+  const searchAddress = useCallback((query: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (query.trim().length < 3) {
+      setSuggestions([]);
+      setShowSuggestions(false);
       return;
     }
-    const coords = CITY_COORDS[query];
-    if (coords) {
-      applyLocation(coords.lat, coords.lng);
-      toast.success(`Location set to ${manualLocation.trim()}! Showing nearest stores.`);
-    } else {
-      toast.error("City not found. Try a major US city (e.g. Chicago, Miami, Denver).");
-    }
-  }, [manualLocation, applyLocation]);
+    setSearchingAddress(true);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const encoded = encodeURIComponent(query.trim());
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encoded}&limit=5&addressdetails=1`,
+          { headers: { "Accept-Language": "en" } }
+        );
+        const data: AddressSuggestion[] = await res.json();
+        setSuggestions(data);
+        setShowSuggestions(data.length > 0);
+      } catch {
+        setSuggestions([]);
+      } finally {
+        setSearchingAddress(false);
+      }
+    }, 350);
+  }, []);
+
+  const handleAddressInput = useCallback((value: string) => {
+    setManualLocation(value);
+    searchAddress(value);
+  }, [searchAddress]);
+
+  const handleSelectSuggestion = useCallback((s: AddressSuggestion) => {
+    applyLocation(parseFloat(s.lat), parseFloat(s.lon), s.display_name);
+    toast.success("Location set! Showing nearest stores.");
+  }, [applyLocation]);
+
+  // Close suggestions on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const getStoreDistance = (storeName: string) => {
     if (!userLocation || nearbyStores.length === 0) return null;
@@ -197,20 +195,34 @@ const StorePrices = () => {
             {locating ? "Finding you…" : userLocation ? "Update" : "Use My Location"}
           </Button>
           <span className="text-sm text-muted-foreground">or</span>
-          <div className="relative flex-1 min-w-[180px]">
+          <div className="relative flex-1 min-w-[220px]" ref={suggestionsRef}>
             <MapPinned className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Type your city (e.g. Chicago)"
+              placeholder="Search address (e.g. 123 Main St, Chicago)"
               value={manualLocation}
-              onChange={(e) => setManualLocation(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleManualLocation()}
+              onChange={(e) => handleAddressInput(e.target.value)}
+              onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
               className="pl-10 text-sm"
-              maxLength={50}
+              maxLength={200}
             />
+            {searchingAddress && (
+              <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+            )}
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="absolute z-50 mt-1 w-full rounded-lg border bg-popover shadow-lg max-h-60 overflow-auto">
+                {suggestions.map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleSelectSuggestion(s)}
+                    className="flex w-full items-start gap-2 px-3 py-2.5 text-left text-sm hover:bg-muted transition-colors border-b last:border-b-0"
+                  >
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="line-clamp-2">{s.display_name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-          <Button onClick={handleManualLocation} variant="outline" size="sm">
-            Set
-          </Button>
         </div>
         {userLocation && (
           <span className="text-sm text-muted-foreground">
