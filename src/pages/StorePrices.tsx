@@ -287,14 +287,21 @@ const StorePrices = () => {
     };
   });
 
-  // Add Target & Walmart price entries for each unique item found locally
+  // Add Target & Walmart price entries only for items they DON'T already have in mock data
   const uniqueLocalItems = [...new Set(localFiltered.map((p) => p.item))];
   const chainPrices: UnifiedPrice[] = [];
   uniqueLocalItems.forEach((itemName) => {
     const itemPrices = localFiltered.filter((p) => p.item === itemName);
     const avgPrice = itemPrices.reduce((s, p) => s + p.price, 0) / itemPrices.length;
     majorChains.forEach((chain, ci) => {
-      // Simulate competitive pricing for major chains (±10% of average)
+      // Skip if this store already has a price for this item in mock data
+      const alreadyExists = localFiltered.some(
+        (p) => p.item === itemName && (
+          p.store.toLowerCase() === chain.name.toLowerCase() ||
+          p.store.toLowerCase() === (chain.brand || "").toLowerCase()
+        )
+      );
+      if (alreadyExists) return;
       const variance = 0.9 + Math.random() * 0.2;
       chainPrices.push({
         id: `chain-${itemName}-${ci}`,
@@ -354,7 +361,10 @@ const StorePrices = () => {
     return acc;
   }, {});
 
-  const bestDeal = search.trim() && allPrices.length > 0 ? allPrices[0] : null;
+  // Always pick the cheapest price as best deal, regardless of sort order
+  const bestDeal = search.trim() && allPrices.length > 0
+    ? allPrices.reduce((best, p) => (p.price < best.price ? p : best), allPrices[0])
+    : null;
 
   const averagePrice =
     bestDeal && allPrices.length > 1
