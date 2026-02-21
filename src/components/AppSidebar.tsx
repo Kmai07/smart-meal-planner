@@ -18,7 +18,7 @@ const navItems = [
 const AppSidebar = () => {
   const location = useLocation();
   const { signOut, user } = useAuth();
-  const [snapBalance, setSnapBalance] = useState(15.0);
+  const [snapBalance, setSnapBalance] = useState(75.0);
   const [deductionInput, setDeductionInput] = useState("");
 
   const handleDeduction = () => {
@@ -28,7 +28,7 @@ const AppSidebar = () => {
     setDeductionInput("");
   };
 
-  const totalBudget = 15.0;
+  const totalBudget = 75.0;
   const used = parseFloat((totalBudget - snapBalance).toFixed(2));
   const percentRemaining = Math.max(0, snapBalance / totalBudget);
 
