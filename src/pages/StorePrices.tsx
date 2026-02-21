@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, ArrowUpDown, Trophy, Tag, MapPin, Navigation, Loader2, MapPinned, Globe, Database, TrendingDown, Calendar } from "lucide-react";
+import { Search, ArrowUpDown, Trophy, Tag, MapPin, Navigation, Loader2, MapPinned, Globe, Database, TrendingDown, Calendar, ExternalLink } from "lucide-react";
 import { mockStorePrices, twinCitiesZipCodes } from "@/data/mockData";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +46,9 @@ interface UnifiedPrice {
   isDiscounted?: boolean;
   priceWithoutDiscount?: number | null;
   discountType?: string | null;
+  storeLat?: number | null;
+  storeLon?: number | null;
+  storeAddress?: string;
 }
 
 const StorePrices = () => {
@@ -82,7 +85,7 @@ const StorePrices = () => {
     liveDebounceRef.current = setTimeout(async () => {
       setLiveLoading(true);
       try {
-        const result = await searchOpenPrices(search, { page_size: 15 });
+        const result = await searchOpenPrices(search, { page_size: 30 });
         if (result.success && result.data) {
           setLiveResults(result.data);
         } else {
@@ -285,16 +288,22 @@ const StorePrices = () => {
         getRealStoreName(p.store).toLowerCase().includes(search.toLowerCase())
     );
 
-  const localUnified: UnifiedPrice[] = localFiltered.map((p, i) => ({
-    id: `local-${i}`,
-    item: p.item,
-    store: getRealStoreName(p.store),
-    price: p.price,
-    source: "local" as const,
-    onSale: p.onSale,
-    snapEligible: p.snapEligible,
-    storeCity: getRealStoreAddress(p.store),
-  }));
+  const localUnified: UnifiedPrice[] = localFiltered.map((p, i) => {
+    const realStore = storeNameMapping.get(p.store);
+    return {
+      id: `local-${i}`,
+      item: p.item,
+      store: getRealStoreName(p.store),
+      price: p.price,
+      source: "local" as const,
+      onSale: p.onSale,
+      snapEligible: p.snapEligible,
+      storeCity: getRealStoreAddress(p.store),
+      storeAddress: realStore?.address || "",
+      storeLat: realStore?.lat || null,
+      storeLon: realStore?.lng || null,
+    };
+  });
 
   // Add Target & Walmart price entries for each unique item found locally
   const uniqueLocalItems = [...new Set(localFiltered.map((p) => p.item))];
@@ -312,6 +321,9 @@ const StorePrices = () => {
         price: parseFloat((avgPrice * variance).toFixed(2)),
         source: "local" as const,
         storeCity: chain.address,
+        storeAddress: chain.address,
+        storeLat: chain.lat || null,
+        storeLon: chain.lng || null,
         snapEligible: true,
       });
     });
@@ -330,6 +342,8 @@ const StorePrices = () => {
     isDiscounted: p.isDiscounted,
     priceWithoutDiscount: p.priceWithoutDiscount,
     discountType: p.discountType,
+    storeLat: p.storeLat,
+    storeLon: p.storeLon,
   }));
 
   const allPrices = [...localUnified, ...chainPrices, ...liveUnified].sort((a, b) => {
@@ -623,24 +637,32 @@ const StorePrices = () => {
               <div className="mt-3 space-y-2">
                 {prices.map((price) => {
                   const dist = price.source === "local" ? getRealStoreDistance(price.store) : null;
+                  const hasLocation = price.storeLat && price.storeLon;
+                  const mapsUrl = hasLocation
+                    ? `https://www.google.com/maps/search/?api=1&query=${price.storeLat},${price.storeLon}`
+                    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(price.store + (price.storeCity ? " " + price.storeCity : ""))}`;
                   return (
-                    <div
+                    <a
                       key={price.id}
-                      className={`flex items-center justify-between rounded-lg px-4 py-3 transition-colors ${
+                      href={mapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`flex items-center justify-between rounded-lg px-4 py-3 transition-colors cursor-pointer hover:ring-2 hover:ring-primary/30 group ${
                         price.price === lowestPrice
                           ? "bg-savings/10 border border-savings/20"
-                          : "bg-muted/50"
+                          : "bg-muted/50 hover:bg-muted"
                       }`}
                     >
                       <div className="flex items-center gap-3 flex-wrap">
                         <div>
-                          <span className="font-medium">{price.store}</span>
-                          {price.source === "local" && price.storeCity && (
-                             <p className="text-xs text-muted-foreground">
-                               {price.storeCity}
-                            </p>
+                          <span className="font-medium group-hover:text-primary transition-colors flex items-center gap-1.5">
+                            {price.store}
+                            <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </span>
+                          {price.storeAddress && (
+                            <p className="text-xs text-muted-foreground">{price.storeAddress}</p>
                           )}
-                          {price.source === "live" && price.storeCity && (
+                          {!price.storeAddress && price.storeCity && (
                             <p className="text-xs text-muted-foreground">{price.storeCity}</p>
                           )}
                         </div>
@@ -696,7 +718,7 @@ const StorePrices = () => {
                           </span>
                         )}
                       </div>
-                    </div>
+                    </a>
                   );
                 })}
               </div>
