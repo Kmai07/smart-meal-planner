@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, ArrowUpDown, Trophy, Tag, MapPin, Navigation, Loader2, MapPinned, Globe, Database, TrendingDown, Calendar, Store } from "lucide-react";
+import { Search, ArrowUpDown, Trophy, Tag, MapPin, Navigation, Loader2, MapPinned, Globe, Database, TrendingDown, Calendar } from "lucide-react";
 import { mockStorePrices, twinCitiesZipCodes } from "@/data/mockData";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -213,14 +213,49 @@ const StorePrices = () => {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Map mock store names to real nearby stores when available
+  // Map mock store names to real nearby stores when available, always include Target & Walmart
   const mockStoreNames = [...new Set(mockStorePrices.map((p) => p.store))];
   const storeNameMapping = new Map<string, RealStore>();
   if (nearbyStores.length > 0) {
-    mockStoreNames.forEach((mockName, i) => {
-      if (i < nearbyStores.length) {
-        storeNameMapping.set(mockName, nearbyStores[i]);
+    // Try to find Target & Walmart in real stores first
+    const targetStore = nearbyStores.find((s) => /target/i.test(s.name) || /target/i.test(s.brand || ""));
+    const walmartStore = nearbyStores.find((s) => /walmart/i.test(s.name) || /walmart/i.test(s.brand || ""));
+    const otherStores = nearbyStores.filter(
+      (s) => s !== targetStore && s !== walmartStore
+    );
+    let storeIdx = 0;
+    mockStoreNames.forEach((mockName) => {
+      if (storeIdx < otherStores.length) {
+        storeNameMapping.set(mockName, otherStores[storeIdx]);
+        storeIdx++;
       }
+    });
+  }
+
+  // Always inject Target & Walmart as virtual stores if not already in nearby results
+  const majorChains: RealStore[] = [];
+  const hasTarget = nearbyStores.some((s) => /target/i.test(s.name) || /target/i.test(s.brand || ""));
+  const hasWalmart = nearbyStores.some((s) => /walmart/i.test(s.name) || /walmart/i.test(s.brand || ""));
+  if (!hasTarget) {
+    majorChains.push({
+      name: "Target",
+      lat: userLocation?.lat || 0,
+      lng: userLocation?.lng || 0,
+      address: "Nearest Target",
+      type: "supermarket",
+      brand: "Target",
+      openingHours: null,
+    });
+  }
+  if (!hasWalmart) {
+    majorChains.push({
+      name: "Walmart",
+      lat: userLocation?.lat || 0,
+      lng: userLocation?.lng || 0,
+      address: "Nearest Walmart",
+      type: "supermarket",
+      brand: "Walmart",
+      openingHours: null,
     });
   }
 
@@ -261,6 +296,27 @@ const StorePrices = () => {
     storeCity: getRealStoreAddress(p.store),
   }));
 
+  // Add Target & Walmart price entries for each unique item found locally
+  const uniqueLocalItems = [...new Set(localFiltered.map((p) => p.item))];
+  const chainPrices: UnifiedPrice[] = [];
+  uniqueLocalItems.forEach((itemName) => {
+    const itemPrices = localFiltered.filter((p) => p.item === itemName);
+    const avgPrice = itemPrices.reduce((s, p) => s + p.price, 0) / itemPrices.length;
+    majorChains.forEach((chain, ci) => {
+      // Simulate competitive pricing for major chains (±10% of average)
+      const variance = 0.9 + Math.random() * 0.2;
+      chainPrices.push({
+        id: `chain-${itemName}-${ci}`,
+        item: itemName,
+        store: chain.name,
+        price: parseFloat((avgPrice * variance).toFixed(2)),
+        source: "local" as const,
+        storeCity: chain.address,
+        snapEligible: true,
+      });
+    });
+  });
+
   const liveUnified: UnifiedPrice[] = liveResults.map((p) => ({
     id: `live-${p.id}`,
     item: p.productName,
@@ -276,7 +332,7 @@ const StorePrices = () => {
     discountType: p.discountType,
   }));
 
-  const allPrices = [...localUnified, ...liveUnified].sort((a, b) => {
+  const allPrices = [...localUnified, ...chainPrices, ...liveUnified].sort((a, b) => {
     if (sortBy === "distance" && userLocation && a.source === "local" && b.source === "local") {
       const distA = getRealStoreDistance(a.store) ?? 999;
       const distB = getRealStoreDistance(b.store) ?? 999;
@@ -286,8 +342,10 @@ const StorePrices = () => {
   });
 
   // Group by item name
+  // Group by item name, limit to 10 stores per product (lowest prices first)
   const grouped = allPrices.reduce<Record<string, UnifiedPrice[]>>((acc, p) => {
-    (acc[p.item] = acc[p.item] || []).push(p);
+    const list = acc[p.item] = acc[p.item] || [];
+    if (list.length < 10) list.push(p);
     return acc;
   }, {});
 
@@ -414,42 +472,6 @@ const StorePrices = () => {
         )}
       </motion.div>
 
-      {/* Nearby Real Stores */}
-      {userLocation && nearbyStores.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="mt-3 rounded-xl border bg-card p-4"
-        >
-          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-3">
-            <Store className="h-4 w-4" />
-            Nearby Grocery Stores
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {nearbyStores.slice(0, 10).map((store, i) => {
-              const dist = kmToMiles(getDistanceKm(userLocation.lat, userLocation.lng, store.lat, store.lng));
-              return (
-                <div
-                  key={i}
-                  className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2 text-sm"
-                >
-                  <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
-                  <div>
-                    <span className="font-medium">{store.name}</span>
-                    {store.address && (
-                      <p className="text-xs text-muted-foreground">{store.address}</p>
-                    )}
-                  </div>
-                  <Badge variant="outline" className="text-xs ml-1 shrink-0">
-                    {dist.toFixed(1)} mi
-                  </Badge>
-                </div>
-              );
-            })}
-          </div>
-        </motion.div>
-      )}
       {loadingStores && (
         <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
