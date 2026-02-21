@@ -76,31 +76,39 @@ Deno.serve(async (req) => {
 
     // Transform the data to a simpler format for the frontend
     if (action === 'search_prices') {
-      const prices = (data.items || []).map((item: any) => ({
-        id: item.id,
-        productName: item.product_name || item.product?.product_name || 'Unknown Product',
-        productCode: item.product_code,
-        price: item.price,
-        currency: item.currency,
-        date: item.date,
-        isDiscounted: item.price_is_discounted,
-        priceWithoutDiscount: item.price_without_discount,
-        discountType: item.discount_type,
-        storeName: item.location?.osm_name || 'Unknown Store',
-        storeCity: item.location?.osm_address_city || '',
-        storeCountry: item.location?.osm_address_country || '',
-        storeLat: item.location?.osm_lat,
-        storeLon: item.location?.osm_lon,
-        productImage: item.product?.image_url,
-        brands: item.product?.brands,
-        categories: item.product?.categories_tags || [],
-      }));
+      const prices = (data.items || [])
+        .map((item: any) => ({
+          id: item.id,
+          productName: item.product_name || item.product?.product_name || 'Unknown Product',
+          productCode: item.product_code,
+          price: item.price,
+          currency: item.currency,
+          date: item.date,
+          isDiscounted: item.price_is_discounted,
+          priceWithoutDiscount: item.price_without_discount,
+          discountType: item.discount_type,
+          storeName: item.location?.osm_name || 'Unknown Store',
+          storeCity: item.location?.osm_address_city || '',
+          storeCountry: item.location?.osm_address_country || '',
+          storeLat: item.location?.osm_lat,
+          storeLon: item.location?.osm_lon,
+          productImage: item.product?.image_url,
+          brands: item.product?.brands,
+          categories: item.product?.categories_tags || [],
+        }))
+        // Filter: product name must actually contain the search query
+        .filter((p: any) => {
+          if (!query) return true;
+          const q = query.toLowerCase();
+          const name = p.productName.toLowerCase();
+          return name.includes(q);
+        });
 
       return new Response(
         JSON.stringify({
           success: true,
           data: prices,
-          total: data.total,
+          total: prices.length,
           page: data.page,
           pages: data.pages,
         }),
