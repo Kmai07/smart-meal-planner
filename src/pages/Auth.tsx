@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -8,7 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Navigate } from "react-router-dom";
 
 const Auth = () => {
-  const { user, loading, signIn, signUp } = useAuth();
+  const { user, loading, signIn, signUp, continueAsGuest } = useAuth();
+  const navigate = useNavigate();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -66,12 +68,26 @@ const Auth = () => {
           </Button>
         </form>
 
-        <p className="mt-4 text-center text-sm text-muted-foreground">
-          {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
-          <button onClick={() => setIsSignUp(!isSignUp)} className="text-primary font-medium hover:underline">
-            {isSignUp ? "Sign in" : "Sign up"}
-          </button>
-        </p>
+        <div className="mt-4 flex flex-col gap-3">
+          <p className="text-center text-sm text-muted-foreground">
+            {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
+            <button onClick={() => setIsSignUp(!isSignUp)} className="text-primary font-medium hover:underline">
+              {isSignUp ? "Sign in" : "Sign up"}
+            </button>
+          </p>
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+            <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">or</span></div>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={() => { continueAsGuest(); navigate("/"); }}
+          >
+            Continue as Guest
+          </Button>
+        </div>
       </motion.div>
     </div>
   );

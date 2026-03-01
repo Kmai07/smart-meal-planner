@@ -6,9 +6,11 @@ interface AuthContextType {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  isGuest: boolean;
   signUp: (email: string, password: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
+  continueAsGuest: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -17,6 +19,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isGuest, setIsGuest] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -50,12 +53,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return { error };
   };
 
+  const continueAsGuest = () => {
+    setIsGuest(true);
+  };
+
   const signOut = async () => {
+    setIsGuest(false);
     await supabase.auth.signOut();
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ session, user, loading, isGuest, signUp, signIn, signOut, continueAsGuest }}>
       {children}
     </AuthContext.Provider>
   );
